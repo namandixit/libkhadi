@@ -28,6 +28,8 @@ typedef struct Khadi Khadi;
 #define KHADI_THREAD_FUNCTION(func_name) void* func_name (void)
 typedef KHADI_THREAD_FUNCTION(Khadi_Thread_Function);
 
+Khadi* khadiCreate (void);
+
 void khadiSetMainCPU    (Khadi *k, Uint cpu);
 void khadiAddTaskCPU    (Khadi *k, Uint cpu);
 void khadiAddDataCPU    (Khadi *k, Uint cpu, Uint thread_count);

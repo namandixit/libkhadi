@@ -50,6 +50,12 @@ global_variable cothread_t *KHADI_GLOBAL_thread_default_coroutine_ids;
 
 global_variable thread_local int KHADI_THREAD_LOCAL_cpu_id;
 
+Khadi* khadiCreate (void)
+{
+    Khadi *k = calloc(1, sizeof(*k));
+    return k;
+}
+
 void khadiSetMainCPU (Khadi *k, Uint cpu) { k->main_cpu = cpu; }
 void khadiAddTaskCPU (Khadi *k, Uint cpu) { sbufAdd(k->task_cpus, cpu); }
 void khadiAddDataCPU (Khadi *k, Uint cpu, Uint thread_count)
