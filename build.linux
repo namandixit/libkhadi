@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+if [ -z ${BuildPlatform+x} ]; then
+    BuildPlatform=linux
+fi
+
+if [ -z ${BuildArchitecture+x} ]; then
+    BuildArchitecture=x64
+fi
+
+ProjectRoot="$( cd "$(dirname "$0")" ; pwd -P)" # Directory in which the script is located
+cd ${ProjectRoot}
+echo "Entering directory \`$(pwd)'"
+
+BuildDirectory="bin/${BuildPlatform}/${BuildArchitecture}"
+mkdir -p ${BuildDirectory}
+
+VersionNumberOld=$(< ./version.linux)
+VersionNumber=$((${VersionNumberOld} + 1))
+echo ${VersionNumber} > ./version.linux
+
+# .....................................................................
+# BUILD
+# `````````````````````````````````````````````````````````````````````
+
+Compiler="clang"
+
+Source=${ProjectRoot}/libkhadi.c
+Target=libkhadi.so
+TargetPath="bin/${BuildPlatform}/${BuildArchitecture}/${Target}"
+
+if [ -f "${TargetPath}" ]; then
+    rm "${TargetPath}"
+fi
+
+# For Address Sanitizer: -fsanitize=address -fno-omit-frame-pointer
+#     Memory Sanitizer : -fsanitize=memory -fno-optimize-sibling-calls -fno-omit-frame-pointer -fsanitize-memory-track-origins
+
+CompilerFlags="-iquote ${ProjectRoot} \
+               -g3 -O0 -fno-strict-aliasing -fwrapv -msse2 -shared -fPIC \
+               "
+LanguageFlags="--std=c11 -DBUILD_INTERNAL -DBUILD_SLOW -DBUILD_DEBUG -D_GNU_SOURCE \
+               -DBUILD_NUMBER=${VersionNumber}                       \
+               -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE           \
+               "
+WarningFlags="-Weverything -Wpedantic -pedantic-errors -Werror \
+              -Wno-c++98-compat \
+              "
+LinkerFlags="-o ${TargetPath} \
+             -static-libgcc -pthread \
+             "
+
+${Compiler} ${CompilerFlags} ${LanguageFlags} ${WarningFlags} \
+            ${Source} \
+            ${LinkerFlags}
