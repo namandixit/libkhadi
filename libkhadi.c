@@ -23,14 +23,14 @@
 # pragma clang diagnostic pop
 #endif
 
-struct Khadi {
+struct Khadi_Config {
     Uint main_cpu;
 
     Byte _pad1[4];
 
     Uint *task_cpus;
 
-    struct Khadi_Data_CPUs {
+    struct Khadi_Config_Data_CPUs {
         Uint cpu;
         Uint thread_count;
     } *data_cpus;
@@ -38,37 +38,38 @@ struct Khadi {
     pthread_t *task_threads;
     pthread_t *data_threads;
 
-    struct Khadi_Coroutine_Metadata {
+    struct Khadi_Config_Coroutine_Metadata {
         Size stack_size;
         Size count;
     } *coroutines;
+    Size coroutine_count;
 };
 
-global_variable sem_t       KHADI_GLOBAL_semaphore_task_threads_init;
-global_variable sem_t       KHADI_GLOBAL_semaphore_data_thread_init;
-global_variable cothread_t *KHADI_GLOBAL_thread_default_coroutine_ids;
+global_variable sem_t               KHADI_GLOBAL_semaphore_task_threads_init;
+global_variable sem_t               KHADI_GLOBAL_semaphore_data_thread_init;
+global_variable cothread_t         *KHADI_GLOBAL_thread_default_coroutine_ids;
 
 global_variable thread_local int KHADI_THREAD_LOCAL_cpu_id;
 
-Khadi* khadiCreate (void)
+Khadi_Config* khadiCreate (void)
 {
-    Khadi *k = calloc(1, sizeof(*k));
+    Khadi_Config *k = calloc(1, sizeof(*k));
     return k;
 }
 
-void khadiSetMainCPU (Khadi *k, Uint cpu) { k->main_cpu = cpu; }
-void khadiAddTaskCPU (Khadi *k, Uint cpu) { sbufAdd(k->task_cpus, cpu); }
-void khadiAddDataCPU (Khadi *k, Uint cpu, Uint thread_count)
+void khadiSetMainCPU (Khadi_Config *k, Uint cpu) { k->main_cpu = cpu; }
+void khadiAddTaskCPU (Khadi_Config *k, Uint cpu) { sbufAdd(k->task_cpus, cpu); }
+void khadiAddDataCPU (Khadi_Config *k, Uint cpu, Uint thread_count)
 {
-    struct Khadi_Data_CPUs kdc = {0};
+    struct Khadi_Config_Data_CPUs kdc = {0};
     kdc.cpu = cpu;
     kdc.thread_count = thread_count;
     sbufAdd(k->data_cpus, kdc);
 }
 
-void khadiAddCoroutines (Khadi *k, Size stack_size, Size count)
+void khadiAddCoroutines (Khadi_Config *k, Size stack_size, Size count)
 {
-    struct Khadi_Coroutine_Metadata kcm = {0};
+    struct Khadi_Config_Coroutine_Metadata kcm = {0};
     kcm.stack_size = stack_size;
     kcm.count = count;
     sbufAdd(k->coroutines, kcm);
@@ -101,7 +102,7 @@ void* khadi__TaskFunction (void *arg) {
     KHADI_GLOBAL_thread_default_coroutine_ids[KHADI_THREAD_LOCAL_cpu_id] = co_active();
     sem_post(&KHADI_GLOBAL_semaphore_task_threads_init);
 
-    Khadi_Thread_Function *func = (Khadi_Thread_Function*)arg;
+    Khadi_Config_Thread_Function *func = (Khadi_Config_Thread_Function*)arg;
     void *result = func();
 
     return result;
@@ -112,17 +113,15 @@ void* khadi__DataFunction (void *arg) {
     KHADI_THREAD_LOCAL_cpu_id = sched_getcpu();
     sem_post(&KHADI_GLOBAL_semaphore_data_thread_init);
 
-    Khadi_Thread_Function *func = (Khadi_Thread_Function*)arg;
+    Khadi_Config_Thread_Function *func = (Khadi_Config_Thread_Function*)arg;
     void *result = func();
 
     return result;
 }
 
-B32 khadiInitialize (Khadi *khadi,
-                     Khadi_Thread_Function *task_func, Khadi_Thread_Function *data_func)
+B32 khadiInitialize (Khadi_Config *khadi,
+                     Khadi_Config_Thread_Function *task_func, Khadi_Config_Thread_Function *data_func)
 {
-    sem_init(&KHADI_GLOBAL_semaphore_task_threads_init, 0, 0);
-    sem_init(&KHADI_GLOBAL_semaphore_data_thread_init, 0, 0);
 
     Size cpu_count = khadiGetCPUCount();
     KHADI_GLOBAL_thread_default_coroutine_ids = calloc(cpu_count,
@@ -137,6 +136,8 @@ B32 khadiInitialize (Khadi *khadi,
     }
 
     { // Create Task and Data threads
+        sem_init(&KHADI_GLOBAL_semaphore_task_threads_init, 0, 0);
+
         for (Size i = 0; i < sbufElemin(khadi->task_cpus); i++) {
             cpu_set_t cpu;
             CPU_ZERO(&cpu);
@@ -152,6 +153,8 @@ B32 khadiInitialize (Khadi *khadi,
 
             pthread_attr_destroy (&attr);
         }
+
+        sem_init(&KHADI_GLOBAL_semaphore_data_thread_init, 0, 0);
 
         for (Size i = 0; i < sbufElemin(khadi->data_cpus); i++) { // Data threads
             for (Size j = 0; j < khadi->data_cpus[i].thread_count; j++) {
@@ -187,7 +190,7 @@ B32 khadiInitialize (Khadi *khadi,
     return true;
 }
 
-void khadiFinalize (Khadi *khadi)
+void khadiFinalize (Khadi_Config *khadi)
 {
     for (Size i = 0; i < sbufElemin(khadi->task_threads); i++) {
         pthread_join(khadi->task_threads[i], NULL);
