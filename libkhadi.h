@@ -24,6 +24,7 @@
 #endif
 
 typedef struct Khadi_Config Khadi_Config;
+typedef cothread_t Khadi_Coroutine;
 
 #define KHADI_THREAD_FUNCTION(func_name) void* func_name (void)
 typedef KHADI_THREAD_FUNCTION(Khadi_Config_Thread_Function);
@@ -42,6 +43,8 @@ B32 khadiInitialize (Khadi_Config *khadi,
                      Khadi_Config_Thread_Function *task_func, Khadi_Config_Thread_Function *data_func);
 void khadiFinalize (Khadi_Config *khadi);
 
+Khadi_Coroutine khadiCoroutineAcquire (void);
+void            khadiCoroutineRelease (Khadi_Coroutine co);
 
 #define LIBKHADI_H_INCLUDE_GUARD
 #endif

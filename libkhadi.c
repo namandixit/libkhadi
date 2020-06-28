@@ -53,6 +53,7 @@ global_variable sem_t               KHADI_GLOBAL_semaphore_task_threads_init;
 global_variable sem_t               KHADI_GLOBAL_semaphore_data_thread_init;
 global_variable cothread_t         *KHADI_GLOBAL_thread_default_coroutine_ids;
 global_variable Coroutine_Metadata *KHADI_GLOBAL_coroutines_metadata_map;
+global_variable cothread_t         *KHADI_GLOBAL_coroutines_queue;
 
 global_variable thread_local int KHADI_THREAD_LOCAL_cpu_id;
 
@@ -78,6 +79,7 @@ void khadiAddCoroutines (Khadi_Config *k, Size stack_size, Size count)
     kcm.stack_size = stack_size;
     kcm.count = count;
     sbufAdd(k->coroutines, kcm);
+    k->coroutine_count++;
 }
 
 Size khadiGetCPUCount (void)
@@ -128,12 +130,14 @@ B32 khadiInitialize (Khadi_Config *khadi,
                      Khadi_Config_Thread_Function *task_func, Khadi_Config_Thread_Function *data_func)
 {
     { // Create Coroutines
+        KHADI_GLOBAL_coroutines_queue = queueLockedCreate(cothread_t, khadi->coroutine_count);
         for (Size i = 0; i < sbufElemin(khadi->coroutines); i++) {
             for (Size j = 0; j < khadi->coroutines[i].count; i++) {
                 cothread_t co = co_create((Uint)khadi->coroutines[i].stack_size, NULL);
                 Coroutine_Metadata com = {0};
                 com.id = co;
                 mapInsert(KHADI_GLOBAL_coroutines_metadata_map, hashInteger((Uptr)co), com);
+                queueLockedEnqueue(KHADI_GLOBAL_coroutines_queue, co);
             }
         }
     }
@@ -216,4 +220,15 @@ void khadiFinalize (Khadi_Config *khadi)
     }
 
     return;
+}
+
+Khadi_Coroutine khadiCoroutineAcquire (void)
+{
+    cothread_t co = queueLockedDequeue(KHADI_GLOBAL_coroutines_queue);
+    return co;
+}
+
+void khadiCoroutineRelease (Khadi_Coroutine co)
+{
+    queueLockedEnqueue(KHADI_GLOBAL_coroutines_queue, co);
 }
