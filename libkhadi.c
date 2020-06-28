@@ -45,9 +45,14 @@ struct Khadi_Config {
     Size coroutine_count;
 };
 
+typedef struct Coroutine_Metadata {
+    cothread_t id;
+} Coroutine_Metadata;
+
 global_variable sem_t               KHADI_GLOBAL_semaphore_task_threads_init;
 global_variable sem_t               KHADI_GLOBAL_semaphore_data_thread_init;
 global_variable cothread_t         *KHADI_GLOBAL_thread_default_coroutine_ids;
+global_variable Coroutine_Metadata *KHADI_GLOBAL_coroutines_metadata_map;
 
 global_variable thread_local int KHADI_THREAD_LOCAL_cpu_id;
 
@@ -122,6 +127,16 @@ void* khadi__DataFunction (void *arg) {
 B32 khadiInitialize (Khadi_Config *khadi,
                      Khadi_Config_Thread_Function *task_func, Khadi_Config_Thread_Function *data_func)
 {
+    { // Create Coroutines
+        for (Size i = 0; i < sbufElemin(khadi->coroutines); i++) {
+            for (Size j = 0; j < khadi->coroutines[i].count; i++) {
+                cothread_t co = co_create((Uint)khadi->coroutines[i].stack_size, NULL);
+                Coroutine_Metadata com = {0};
+                com.id = co;
+                mapInsert(KHADI_GLOBAL_coroutines_metadata_map, hashInteger((Uptr)co), com);
+            }
+        }
+    }
 
     Size cpu_count = khadiGetCPUCount();
     KHADI_GLOBAL_thread_default_coroutine_ids = calloc(cpu_count,
