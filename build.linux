@@ -9,7 +9,7 @@ if [ -z ${BuildArchitecture+x} ]; then
 fi
 
 ProjectRoot="$( cd "$(dirname "$0")" ; pwd -P)" # Directory in which the script is located
-pushd ${ProjectRoot}
+pushd ${ProjectRoot} > /dev/null
 echo "Entering directory \`$(pwd)'"
 
 BuildDirectory="bin/${BuildPlatform}/${BuildArchitecture}"
@@ -48,4 +48,5 @@ LinkerFlags="-o ${TargetPath} \
 ${Compiler} ${CompilerFlags} ${LanguageFlags} ${WarningFlags} \
             ${Source} \
             ${LinkerFlags}
-popd
+
+popd > /dev/null
