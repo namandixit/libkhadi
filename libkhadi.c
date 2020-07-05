@@ -45,6 +45,14 @@ struct Khadi_Config {
     Size fiber_count;
 };
 
+struct Khadi_Task {
+    Khadi_Task_Function *func;
+    void *arg;
+    Khadi_Fiber *assigned_fiber;
+    Queue_Locked_Entry queue_entry;
+};
+
+
 typedef struct Fiber_Metadata {
     cothread_t id;
 } Fiber_Metadata;
@@ -54,6 +62,7 @@ global_variable sem_t               KHADI_GLOBAL_semaphore_data_thread_init;
 global_variable cothread_t         *KHADI_GLOBAL_thread_default_fiber_ids;
 global_variable Fiber_Metadata     *KHADI_GLOBAL_fibers_metadata_map;
 global_variable cothread_t         *KHADI_GLOBAL_fibers_ring;
+global_variable Queue_Locked_Entry *KHADI_GLOBAL_task_queue;
 
 global_variable thread_local int KHADI_THREAD_LOCAL_cpu_id;
 
@@ -140,6 +149,10 @@ B32 khadiInitialize (Khadi_Config *khadi,
                 ringLockedPush(KHADI_GLOBAL_fibers_ring, co);
             }
         }
+    }
+
+    { // Task
+        KHADI_GLOBAL_task_queue = queueLockedCreate();
     }
 
     Size cpu_count = khadiGetCPUCount();
@@ -232,4 +245,27 @@ void khadiFiberRelease (Khadi_Fiber fiber)
 {
     ringLockedPush(KHADI_GLOBAL_fibers_ring, fiber);
 }
+
+Khadi_Task* khadiTaskCreate (Khadi_Task_Function *func, void *arg)
+{
+    Khadi_Task *task = calloc(1, sizeof(*task));
+
+    task->func = func;
+    task->arg = arg;
+
+    return task;
+}
+
+void khadiTaskSubmit (Khadi_Task *task)
+{
+    queueLockedEnqueue(KHADI_GLOBAL_task_queue, &task->queue_entry);
+}
+
+Khadi_Task* khadiTaskAccept (void)
+{
+    Queue_Locked_Entry *qr;
+    queueLockedDequeue(KHADI_GLOBAL_task_queue, qr);
+    Khadi_Task *task = containerof(qr, Khadi_Task, queue_entry);
+
+    return task;
 }

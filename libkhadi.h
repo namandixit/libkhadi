@@ -26,6 +26,9 @@
 typedef struct Khadi_Config Khadi_Config;
 typedef cothread_t          Khadi_Fiber;
 
+#define KHADI_TASK_FUNCTION(func_name) void* func_name (void *)
+typedef KHADI_TASK_FUNCTION(Khadi_Task_Function);
+typedef struct Khadi_Task Khadi_Task;
 
 #define KHADI_THREAD_FUNCTION(func_name) void* func_name (void)
 typedef KHADI_THREAD_FUNCTION(Khadi_Config_Thread_Function);
@@ -46,6 +49,11 @@ void khadiFinalize (Khadi_Config *khadi);
 
 Khadi_Fiber khadiFiberAcquire (void);
 void        khadiFiberRelease (Khadi_Fiber co);
+Khadi_Task* khadiTaskCreate (Khadi_Task_Function *func, void *arg);
+
+void        khadiTaskSubmit (Khadi_Task *task);
+Khadi_Task* khadiTaskAccept (void);
+
 
 #define LIBKHADI_H_INCLUDE_GUARD
 #endif
