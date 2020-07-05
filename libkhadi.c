@@ -104,7 +104,7 @@ Size khadiCurrentCPU (void)
 }
 
 internal_function
-void* khadi__TaskFunction (void *arg) {
+void* khadi__ThreadTaskFunction (void *arg) {
     KHADI_THREAD_LOCAL_cpu_id = sched_getcpu();
     KHADI_GLOBAL_thread_default_fiber_ids[KHADI_THREAD_LOCAL_cpu_id] = co_active();
     sem_post(&KHADI_GLOBAL_semaphore_task_threads_init);
@@ -116,7 +116,7 @@ void* khadi__TaskFunction (void *arg) {
 }
 
 internal_function
-void* khadi__DataFunction (void *arg) {
+void* khadi__ThreadDataFunction (void *arg) {
     KHADI_THREAD_LOCAL_cpu_id = sched_getcpu();
     sem_post(&KHADI_GLOBAL_semaphore_data_thread_init);
 
@@ -167,7 +167,7 @@ B32 khadiInitialize (Khadi_Config *khadi,
             pthread_attr_setaffinity_np(&attr, sizeof(cpu), &cpu);
 
             pthread_t thread;
-            pthread_create(&thread, &attr, khadi__TaskFunction, (void*)task_func);
+            pthread_create(&thread, &attr, khadi__ThreadTaskFunction, (void*)task_func);
             sbufAdd(khadi->task_threads, thread);
 
             pthread_attr_destroy (&attr);
@@ -186,7 +186,7 @@ B32 khadiInitialize (Khadi_Config *khadi,
                 pthread_attr_setaffinity_np(&attr, sizeof(cpu), &cpu);
 
                 pthread_t thread;
-                pthread_create(&thread, &attr, khadi__DataFunction, (void*)data_func);
+                pthread_create(&thread, &attr, khadi__ThreadDataFunction, (void*)data_func);
                 sbufAdd(khadi->data_threads, thread);
 
                 pthread_attr_destroy (&attr);
