@@ -48,7 +48,8 @@ B32 khadiInitialize (Khadi_Config *khadi,
 void khadiFinalize (Khadi_Config *khadi);
 
 Khadi_Fiber khadiFiberAcquire (void);
-void        khadiFiberRelease (Khadi_Fiber co);
+void        khadiFiberRelease (Khadi_Fiber fiber);
+
 Khadi_Task* khadiTaskCreate (Khadi_Task_Function *func, void *arg);
 
 void        khadiTaskSubmit (Khadi_Task *task);
