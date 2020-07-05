@@ -24,7 +24,8 @@
 #endif
 
 typedef struct Khadi_Config Khadi_Config;
-typedef cothread_t Khadi_Coroutine;
+typedef cothread_t          Khadi_Fiber;
+
 
 #define KHADI_THREAD_FUNCTION(func_name) void* func_name (void)
 typedef KHADI_THREAD_FUNCTION(Khadi_Config_Thread_Function);
@@ -34,7 +35,7 @@ Khadi_Config* khadiCreate (void);
 void khadiSetMainCPU    (Khadi_Config *k, Uint cpu);
 void khadiAddTaskCPU    (Khadi_Config *k, Uint cpu);
 void khadiAddDataCPU    (Khadi_Config *k, Uint cpu, Uint thread_count);
-void khadiAddCoroutines (Khadi_Config *k, Size stack_size, Size count);
+void khadiAddFibers     (Khadi_Config *k, Size stack_size, Size count);
 
 Size khadiGetCPUCount (void);
 Size khadiCurrentCPU  (void);
@@ -43,8 +44,8 @@ B32 khadiInitialize (Khadi_Config *khadi,
                      Khadi_Config_Thread_Function *task_func, Khadi_Config_Thread_Function *data_func);
 void khadiFinalize (Khadi_Config *khadi);
 
-Khadi_Coroutine khadiCoroutineAcquire (void);
-void            khadiCoroutineRelease (Khadi_Coroutine co);
+Khadi_Fiber khadiFiberAcquire (void);
+void        khadiFiberRelease (Khadi_Fiber co);
 
 #define LIBKHADI_H_INCLUDE_GUARD
 #endif

@@ -38,22 +38,22 @@ struct Khadi_Config {
     pthread_t *task_threads;
     pthread_t *data_threads;
 
-    struct Khadi_Config_Coroutine_Metadata {
+    struct Khadi_Config_Fiber_Metadata {
         Size stack_size;
         Size count;
-    } *coroutines;
-    Size coroutine_count;
+    } *fibers;
+    Size fiber_count;
 };
 
-typedef struct Coroutine_Metadata {
+typedef struct Fiber_Metadata {
     cothread_t id;
-} Coroutine_Metadata;
+} Fiber_Metadata;
 
 global_variable sem_t               KHADI_GLOBAL_semaphore_task_threads_init;
 global_variable sem_t               KHADI_GLOBAL_semaphore_data_thread_init;
-global_variable cothread_t         *KHADI_GLOBAL_thread_default_coroutine_ids;
-global_variable Coroutine_Metadata *KHADI_GLOBAL_coroutines_metadata_map;
-global_variable cothread_t         *KHADI_GLOBAL_coroutines_queue;
+global_variable cothread_t         *KHADI_GLOBAL_thread_default_fiber_ids;
+global_variable Fiber_Metadata     *KHADI_GLOBAL_fibers_metadata_map;
+global_variable cothread_t         *KHADI_GLOBAL_fibers_ring;
 
 global_variable thread_local int KHADI_THREAD_LOCAL_cpu_id;
 
@@ -73,13 +73,13 @@ void khadiAddDataCPU (Khadi_Config *k, Uint cpu, Uint thread_count)
     sbufAdd(k->data_cpus, kdc);
 }
 
-void khadiAddCoroutines (Khadi_Config *k, Size stack_size, Size count)
+void khadiAddFibers (Khadi_Config *k, Size stack_size, Size count)
 {
-    struct Khadi_Config_Coroutine_Metadata kcm = {0};
-    kcm.stack_size = stack_size;
-    kcm.count = count;
-    sbufAdd(k->coroutines, kcm);
-    k->coroutine_count++;
+    struct Khadi_Config_Fiber_Metadata kfm = {0};
+    kfm.stack_size = stack_size;
+    kfm.count = count;
+    sbufAdd(k->fibers, kfm);
+    k->fiber_count++;
 }
 
 Size khadiGetCPUCount (void)
@@ -106,7 +106,7 @@ Size khadiCurrentCPU (void)
 internal_function
 void* khadi__TaskFunction (void *arg) {
     KHADI_THREAD_LOCAL_cpu_id = sched_getcpu();
-    KHADI_GLOBAL_thread_default_coroutine_ids[KHADI_THREAD_LOCAL_cpu_id] = co_active();
+    KHADI_GLOBAL_thread_default_fiber_ids[KHADI_THREAD_LOCAL_cpu_id] = co_active();
     sem_post(&KHADI_GLOBAL_semaphore_task_threads_init);
 
     Khadi_Config_Thread_Function *func = (Khadi_Config_Thread_Function*)arg;
@@ -129,22 +129,22 @@ void* khadi__DataFunction (void *arg) {
 B32 khadiInitialize (Khadi_Config *khadi,
                      Khadi_Config_Thread_Function *task_func, Khadi_Config_Thread_Function *data_func)
 {
-    { // Create Coroutines
-        KHADI_GLOBAL_coroutines_queue = queueLockedCreate(cothread_t, khadi->coroutine_count);
-        for (Size i = 0; i < sbufElemin(khadi->coroutines); i++) {
-            for (Size j = 0; j < khadi->coroutines[i].count; i++) {
-                cothread_t co = co_create((Uint)khadi->coroutines[i].stack_size, NULL);
-                Coroutine_Metadata com = {0};
-                com.id = co;
-                mapInsert(KHADI_GLOBAL_coroutines_metadata_map, hashInteger((Uptr)co), com);
-                queueLockedEnqueue(KHADI_GLOBAL_coroutines_queue, co);
+    { // Create Fibers
+        KHADI_GLOBAL_fibers_ring = ringLockedCreate(cothread_t, khadi->fiber_count);
+        for (Size i = 0; i < sbufElemin(khadi->fibers); i++) {
+            for (Size j = 0; j < khadi->fibers[i].count; i++) {
+                cothread_t co = co_create((Uint)khadi->fibers[i].stack_size, NULL);
+                Fiber_Metadata fm = {0};
+                fm.id = co;
+                mapInsert(KHADI_GLOBAL_fibers_metadata_map, hashInteger((Uptr)co), fm);
+                ringLockedPush(KHADI_GLOBAL_fibers_ring, co);
             }
         }
     }
 
     Size cpu_count = khadiGetCPUCount();
-    KHADI_GLOBAL_thread_default_coroutine_ids = calloc(cpu_count,
-                                                       sizeof(KHADI_GLOBAL_thread_default_coroutine_ids));
+    KHADI_GLOBAL_thread_default_fiber_ids = calloc(cpu_count,
+                                                       sizeof(KHADI_GLOBAL_thread_default_fiber_ids));
 
     { // Pin main thread to Core #0
         pthread_t mthread = pthread_self();
@@ -222,13 +222,14 @@ void khadiFinalize (Khadi_Config *khadi)
     return;
 }
 
-Khadi_Coroutine khadiCoroutineAcquire (void)
+Khadi_Fiber khadiFiberAcquire (void)
 {
-    cothread_t co = queueLockedDequeue(KHADI_GLOBAL_coroutines_queue);
+    cothread_t co = ringLockedPull(KHADI_GLOBAL_fibers_ring);
     return co;
 }
 
-void khadiCoroutineRelease (Khadi_Coroutine co)
+void khadiFiberRelease (Khadi_Fiber fiber)
 {
-    queueLockedEnqueue(KHADI_GLOBAL_coroutines_queue, co);
+    ringLockedPush(KHADI_GLOBAL_fibers_ring, fiber);
+}
 }
