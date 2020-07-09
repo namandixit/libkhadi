@@ -39,40 +39,18 @@ typedef KHADI_THREAD_FUNCTION(Khadi_Config_Thread_Function);
 
 Khadi_Config* khadiCreate (void);
 
-void khadiSetMainCPU    (Khadi_Config *k, Uint cpu);
-void khadiAddTaskCPU    (Khadi_Config *k, Uint cpu);
-void khadiAddDataCPU    (Khadi_Config *k, Uint cpu, Uint thread_count);
-void khadiAddFibers     (Khadi_Config *k, Size stack_size, Size count);
+B32  khadiInitialize (Khadi_Config *khadi);
+void khadiFinalize   (Khadi_Config *khadi);
+void khadiSetMainCPU (Khadi_Config *k, Uint cpu);
+void khadiAddTaskCPU (Khadi_Config *k, Uint cpu);
+void khadiAddDataCPU (Khadi_Config *k, Uint cpu, Uint thread_count);
+void khadiAddFibers  (Khadi_Config *k, Size stack_size, Size count);
 
 Size khadiGetCPUCount (void);
 Size khadiCurrentCPU  (void);
 
-B32  khadiInitialize (Khadi_Config *khadi,
-                      Khadi_Config_Thread_Function *task_func, Khadi_Config_Thread_Function *data_func);
-void khadiFinalize   (Khadi_Config *khadi);
-
-Khadi_Fiber khadiFiberAcquire (void);
-void        khadiFiberRelease (Khadi_Fiber fiber);
-#define     khadiFiberReleaseSafe(fiber) (khadiFiberRelease(fiber), (fiber) = NULL)
-
-Khadi_Fiber_Metadata* khadiFiberGetMetadata (Khadi_Fiber fiber);
-
-
-B64 khadiFiberTaskFinished (Khadi_Fiber fiber);
-
 Khadi_Task* khadiTaskCreate  (Khadi_Task_Function *func, void *arg);
 void        khadiTaskDestroy (Khadi_Task *task);
-
-void        khadiTaskSubmit (Khadi_Task *task);
-Khadi_Task* khadiTaskAccept (void);
-
-void        khadiTaskAssignFiber  (Khadi_Task *task, Khadi_Fiber fiber);
-Khadi_Fiber khadiTaskRetriveFiber (Khadi_Task *task);
-
-void khadiTaskExecute (Khadi_Task *task);
-
-B64 khadiTaskIsReady (Khadi_Task *task);
-void khadiTaskMarkDone(Khadi_Task *task);
 
 #define LIBKHADI_H_INCLUDE_GUARD
 #endif

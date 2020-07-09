@@ -39,7 +39,7 @@ LanguageFlags="--std=c18 -DBUILD_INTERNAL -DBUILD_SLOW -DBUILD_DEBUG -D_GNU_SOUR
                -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE           \
                "
 WarningFlags="-Weverything -Wpedantic -pedantic-errors -Werror \
-              -Wno-c++98-compat \
+              -Wno-c++98-compat -Wno-unused-function \
               "
 LinkerFlags="-o ${TargetPath} \
              -static-libgcc -pthread \
