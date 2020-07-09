@@ -206,10 +206,12 @@ B32 khadiInitialize (Khadi_Config *khadi)
 void khadiFinalize (Khadi_Config *khadi)
 {
     for (Size i = 0; i < sbufElemin(khadi->task_threads); i++) {
+        pthread_cancel(khadi->task_threads[i]);
         pthread_join(khadi->task_threads[i], NULL);
     }
 
     for (Size i = 0; i < sbufElemin(khadi->data_threads); i++) {
+        pthread_cancel(khadi->data_threads[i]);
         pthread_join(khadi->data_threads[i], NULL);
     }
 
@@ -321,6 +323,8 @@ KHADI_INTERNAL
 void* khadi__ThreadTaskFunction (void *arg) {
     unused_variable(arg);
 
+    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
+
     KHADI_THREAD_LOCAL_cpu_id = sched_getcpu();
     KHADI_GLOBAL_thread_default_fiber_id = co_active();
     sem_post(&KHADI_GLOBAL_semaphore_task_threads_init);
@@ -328,7 +332,10 @@ void* khadi__ThreadTaskFunction (void *arg) {
     printf("Task CPU: %zu\n", khadiCurrentCPU());
 
     while (true) {
+        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         Khadi_Task *task = khadiTaskAccept();
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
         if (!khadiTaskIsReady(task)) {
             khadiTaskSubmit(task);
             continue;
