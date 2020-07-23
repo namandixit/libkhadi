@@ -25,7 +25,7 @@
 
 typedef struct Khadi_Config Khadi_Config;
 
-#define KHADI_TASK_FUNCTION(func_name) void* func_name (void * arg)
+#define KHADI_TASK_FUNCTION(func_name) void func_name (void * arg)
 typedef KHADI_TASK_FUNCTION(Khadi_Task_Function);
 typedef struct Khadi_Task Khadi_Task;
 
