@@ -25,7 +25,6 @@
 # pragma clang diagnostic pop
 #endif
 
-typedef _Atomic(U64) Khadi_Counter;
 typedef cothread_t                  Khadi_Fiber;
 typedef struct Khadi_Fiber_Metadata Khadi_Fiber_Metadata;
 
@@ -61,10 +60,8 @@ struct Khadi_Task {
     Khadi_Fiber assigned_fiber;
     Queue_Locked_Entry queue_entry;
     Khadi_Counter *parent_counter; // Counter which this task will decrement upon completion
-    Khadi_Counter child_counter; // Counter which this task's children will decrement upon completion
-    B64 is_child;
+    Khadi_Counter *child_counter; // Counter which this task's children will decrement upon completion
 };
-
 
 struct Khadi_Fiber_Metadata {
     cothread_t id;
@@ -267,6 +264,26 @@ B64 khadiFiberIsTaskFinished (Khadi_Fiber fiber)
 }
 
 KHADI_EXPORTED
+Khadi_Counter* khadiCounterCreate (void)
+{
+    Khadi_Counter *counter = malloc(sizeof(*counter));
+    atomic_init(counter, 0);
+    return counter;
+}
+
+KHADI_EXPORTED
+void khadiCounterDestroy (Khadi_Counter *counter)
+{
+    free(counter);
+}
+
+KHADI_EXPORTED
+Khadi_Counter khadiCounterGet (Khadi_Counter *counter)
+{
+    return *counter;
+}
+
+KHADI_EXPORTED
 Khadi_Task* khadiTaskCreate (Khadi_Task_Function *func, void *arg)
 {
     Khadi_Task *task = calloc(1, sizeof(*task));
@@ -278,22 +295,6 @@ Khadi_Task* khadiTaskCreate (Khadi_Task_Function *func, void *arg)
 }
 
 KHADI_EXPORTED
-Khadi_Task *khadiTaskCreateChild (Khadi_Task_Function *func, void *arg)
-{
-    Khadi_Fiber_Metadata* fmp = khadiFiberGetMetadata (KHADI_GLOBAL_thread_current_fiber_id);
-    Khadi_Task *parent = fmp->assigned_task;
-
-    Khadi_Task *this = khadiTaskCreate(func, arg);
-
-    parent->child_counter++;
-    this->parent_counter = &parent->child_counter;
-
-    this->is_child = true;
-
-    return this;
-}
-
-KHADI_EXPORTED
 void khadiTaskDestroy (Khadi_Task *task)
 {
     task->func = NULL;
@@ -302,17 +303,48 @@ void khadiTaskDestroy (Khadi_Task *task)
 }
 
 KHADI_EXPORTED
-void khadiTaskSubmit (Khadi_Task *task)
+void khadiTaskSync (Khadi_Counter *counter)
 {
+    Khadi_Fiber_Metadata* fmp = khadiFiberGetMetadata(KHADI_GLOBAL_thread_current_fiber_id);
+    Khadi_Task *task = fmp->assigned_task;
+
+    task->child_counter = counter;
+    co_switch(KHADI_GLOBAL_thread_default_fiber_id);
+    task->child_counter = NULL;
+}
+
+KHADI_EXPORTED
+void khadiTaskSubmitAsync (Khadi_Task *task, Khadi_Counter *counter)
+{
+    atomic_fetch_add(counter, 1);
+    task->parent_counter = counter;
+
     queueLockedEnqueue(KHADI_GLOBAL_task_queue, &task->queue_entry);
 }
 
 KHADI_EXPORTED
-void khadiTaskSubmitMany (Khadi_Task **task, Size count)
+void khadiTaskSubmitAsyncMany (Khadi_Task **tasks, Size count, Khadi_Counter *counter)
 {
+    atomic_fetch_add(counter, count);
+
     for (Size i = 0; i < count; i++) {
-        queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(task[i])->queue_entry);
+        tasks[i]->parent_counter = counter;
+        queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(tasks[i])->queue_entry);
     }
+}
+
+KHADI_EXPORTED
+void khadiTaskSubmitSync (Khadi_Task *task, Khadi_Counter *counter)
+{
+    khadiTaskSubmitAsync(task, counter);
+    khadiTaskSync(counter);
+}
+
+KHADI_EXPORTED
+void khadiTaskSubmitSyncMany (Khadi_Task **tasks, Size count, Khadi_Counter *counter)
+{
+    khadiTaskSubmitAsyncMany(tasks, count, counter);
+    khadiTaskSync(counter);
 }
 
 KHADI_INTERNAL
@@ -354,7 +386,7 @@ KHADI_INTERNAL
 B64 khadiTaskIsReady (Khadi_Task *task)
 {
     B64 result = false;
-    if (task->child_counter == 0) {
+    if (*(task->child_counter) == 0) {
         result = true;
     }
 
@@ -364,7 +396,7 @@ B64 khadiTaskIsReady (Khadi_Task *task)
 KHADI_INTERNAL
 void khadiTaskMarkDone(Khadi_Task *task)
 {
-    if (task->is_child) {
+    if (task->parent_counter != NULL) {
         atomic_fetch_sub(task->parent_counter, 1);
     }
 }
@@ -389,7 +421,7 @@ void* khadi__ThreadTaskFunction (void *arg) {
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
         if (!khadiTaskIsReady(task)) {
-            khadiTaskSubmit(task);
+            khadiTaskSubmitAsync(task, task->parent_counter);
             continue;
         }
 
@@ -406,7 +438,7 @@ void* khadi__ThreadTaskFunction (void *arg) {
 
             khadiFiberRelease(fiber);
         } else {
-            khadiTaskSubmit(task);
+            khadiTaskSubmitAsync(task, task->parent_counter);
         }
     }
 
