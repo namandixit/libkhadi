@@ -330,6 +330,7 @@ void khadiTaskAssignFiber (Khadi_Task *task, Khadi_Fiber fiber)
 {
     Khadi_Fiber_Metadata *fmp = khadiFiberGetMetadata(fiber);
     fmp->is_task_finished = false;
+    fmp->assigned_task = task;
 
     task->assigned_fiber = fiber;
 }
