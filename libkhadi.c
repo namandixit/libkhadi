@@ -4,6 +4,7 @@
  */
 
 #define KHADI_INTERNAL internal_function __attribute__ ((noinline))
+#define KHADI_EXPORTED
 
 #include "libkhadi.h"
 #include <stdatomic.h>
@@ -75,15 +76,16 @@ global_variable Queue_Locked_Entry   *KHADI_GLOBAL_task_queue;
 global_variable thread_local int          KHADI_THREAD_LOCAL_cpu_id;
 global_variable thread_local Khadi_Fiber  KHADI_GLOBAL_thread_default_fiber_id;
 
+KHADI_EXPORTED
 Khadi_Config* khadiCreate (void)
 {
     Khadi_Config *k = calloc(1, sizeof(*k));
     return k;
 }
 
-void khadiSetMainCPU (Khadi_Config *k, Uint cpu) { k->main_cpu = cpu; }
-void khadiAddTaskCPU (Khadi_Config *k, Uint cpu) { sbufAdd(k->task_cpus, cpu); }
-void khadiAddDataCPU (Khadi_Config *k, Uint cpu, Uint thread_count)
+KHADI_EXPORTED void khadiSetMainCPU (Khadi_Config *k, Uint cpu) { k->main_cpu = cpu; }
+KHADI_EXPORTED void khadiAddTaskCPU (Khadi_Config *k, Uint cpu) { sbufAdd(k->task_cpus, cpu); }
+KHADI_EXPORTED void khadiAddDataCPU (Khadi_Config *k, Uint cpu, Uint thread_count)
 {
     struct Khadi_Config_Data_CPUs kdc = {0};
     kdc.cpu = cpu;
@@ -91,6 +93,7 @@ void khadiAddDataCPU (Khadi_Config *k, Uint cpu, Uint thread_count)
     sbufAdd(k->data_cpus, kdc);
 }
 
+KHADI_EXPORTED
 void khadiAddFibers (Khadi_Config *k, Size stack_size, Size count)
 {
     struct Khadi_Config_Fiber_Metadata kfm = {0};
@@ -100,6 +103,7 @@ void khadiAddFibers (Khadi_Config *k, Size stack_size, Size count)
     k->fiber_count++;
 }
 
+KHADI_EXPORTED
 Size khadiGetCPUCount (void)
 {
     cpu_set_t cs;
@@ -116,11 +120,13 @@ Size khadiGetCPUCount (void)
     return count;
 }
 
+KHADI_EXPORTED
 Size khadiCurrentCPU (void)
 {
     return (Size)KHADI_THREAD_LOCAL_cpu_id;
 }
 
+KHADI_EXPORTED
 B32 khadiInitialize (Khadi_Config *khadi)
 {
     { // Create Fibers
@@ -203,6 +209,7 @@ B32 khadiInitialize (Khadi_Config *khadi)
     return true;
 }
 
+KHADI_EXPORTED
 void khadiFinalize (Khadi_Config *khadi)
 {
     for (Size i = 0; i < sbufElemin(khadi->task_threads); i++) {
@@ -252,6 +259,7 @@ B64 khadiFiberIsTaskFinished (Khadi_Fiber fiber)
     return result;
 }
 
+KHADI_EXPORTED
 Khadi_Task* khadiTaskCreate (Khadi_Task_Function *func, void *arg)
 {
     Khadi_Task *task = calloc(1, sizeof(*task));
@@ -262,8 +270,11 @@ Khadi_Task* khadiTaskCreate (Khadi_Task_Function *func, void *arg)
     return task;
 }
 
+KHADI_EXPORTED
 void khadiTaskDestroy (Khadi_Task *task)
 {
+    task->func = NULL;
+    task->arg = NULL;
     free(task);
 }
 
