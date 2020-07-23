@@ -103,7 +103,7 @@ void khadiAddFibers (Khadi_Config *k, Size stack_size, Size count)
     kfm.stack_size = stack_size;
     kfm.count = count;
     sbufAdd(k->fibers, kfm);
-    k->fiber_count++;
+    k->fiber_count += count;
 }
 
 KHADI_EXPORTED
@@ -135,7 +135,7 @@ B32 khadiInitialize (Khadi_Config *khadi)
     { // Create Fibers
         KHADI_GLOBAL_fibers_ring = ringLockedCreate(cothread_t, khadi->fiber_count);
         for (Size i = 0; i < sbufElemin(khadi->fibers); i++) {
-            for (Size j = 0; j < khadi->fibers[i].count; i++) {
+            for (Size j = 0; j < khadi->fibers[i].count; j++) {
                 cothread_t co = co_create((Uint)khadi->fibers[i].stack_size, khadi__FiberFunction);
                 Khadi_Fiber_Metadata fm = {0};
                 fm.id = co;
@@ -386,7 +386,9 @@ KHADI_INTERNAL
 B64 khadiTaskIsReady (Khadi_Task *task)
 {
     B64 result = false;
-    if (*(task->child_counter) == 0) {
+    if (task->child_counter == NULL) {
+        result = true;
+    } else if (*(task->child_counter) == 0) {
         result = true;
     }
 
@@ -421,7 +423,7 @@ void* khadi__ThreadTaskFunction (void *arg) {
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
         if (!khadiTaskIsReady(task)) {
-            khadiTaskSubmitAsync(task, task->parent_counter);
+            queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(task)->queue_entry);
             continue;
         }
 
@@ -438,7 +440,7 @@ void* khadi__ThreadTaskFunction (void *arg) {
 
             khadiFiberRelease(fiber);
         } else {
-            khadiTaskSubmitAsync(task, task->parent_counter);
+            queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(task)->queue_entry);
         }
     }
 
