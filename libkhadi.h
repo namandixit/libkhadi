@@ -25,31 +25,27 @@
 
 typedef struct Khadi_Config Khadi_Config;
 
-typedef cothread_t                  Khadi_Fiber;
-typedef struct Khadi_Fiber_Metadata Khadi_Fiber_Metadata;
-
-typedef _Atomic(U64) Khadi_Counter;
-
 #define KHADI_TASK_FUNCTION(func_name) void* func_name (void *)
 typedef KHADI_TASK_FUNCTION(Khadi_Task_Function);
 typedef struct Khadi_Task Khadi_Task;
 
-#define KHADI_THREAD_FUNCTION(func_name) void* func_name (void)
-typedef KHADI_THREAD_FUNCTION(Khadi_Config_Thread_Function);
+Size khadiGetCPUCount (void);
+Size khadiCurrentCPU  (void);
 
 Khadi_Config* khadiCreate (void);
 
-B32  khadiInitialize (Khadi_Config *khadi);
-void khadiFinalize   (Khadi_Config *khadi);
 void khadiSetMainCPU (Khadi_Config *k, Uint cpu);
 void khadiAddTaskCPU (Khadi_Config *k, Uint cpu);
 void khadiAddDataCPU (Khadi_Config *k, Uint cpu, Uint thread_count);
 void khadiAddFibers  (Khadi_Config *k, Size stack_size, Size count);
 
-Size khadiGetCPUCount (void);
-Size khadiCurrentCPU  (void);
+B32  khadiInitialize (Khadi_Config *khadi);
+void khadiFinalize   (Khadi_Config *khadi);
 
 Khadi_Task* khadiTaskCreate  (Khadi_Task_Function *func, void *arg);
+Khadi_Task* khadiTaskCreateChild (Khadi_Task_Function *func, void *arg);
+void        khadiTaskSubmit (Khadi_Task *task);
+void        khadiTaskSubmitMany (Khadi_Task **task, Size count);
 void        khadiTaskDestroy (Khadi_Task *task);
 
 #define LIBKHADI_H_INCLUDE_GUARD

@@ -11,11 +11,9 @@
 
 #if defined(COMPILER_CLANG)
 # pragma clang diagnostic push
-# pragma clang diagnostic ignored "-Wstrict-prototypes"
 # pragma clang diagnostic ignored "-Wmacro-redefined"
 # pragma clang diagnostic ignored "-Wsign-conversion"
 # pragma clang diagnostic ignored "-Wmissing-noreturn"
-# pragma clang diagnostic ignored "-Wmissing-prototypes"
 # pragma clang diagnostic ignored "-Wcast-qual"
 # pragma clang diagnostic ignored "-Wcast-align"
 #endif
@@ -27,8 +25,13 @@
 # pragma clang diagnostic pop
 #endif
 
+typedef _Atomic(U64) Khadi_Counter;
+typedef cothread_t                  Khadi_Fiber;
+typedef struct Khadi_Fiber_Metadata Khadi_Fiber_Metadata;
+
 KHADI_INTERNAL void* khadi__ThreadDataFunction (void* arg);
 KHADI_INTERNAL void* khadi__ThreadTaskFunction (void *arg);
+KHADI_INTERNAL void khadi__FiberFunction (void);
 
 struct Khadi_Config {
     Uint main_cpu;
@@ -57,14 +60,16 @@ struct Khadi_Task {
     void *arg;
     Khadi_Fiber assigned_fiber;
     Queue_Locked_Entry queue_entry;
-    Khadi_Counter *parent_counter; // Counter which this task will decrement
-    Khadi_Counter child_counter; // Counter which this task's children will decrement
+    Khadi_Counter *parent_counter; // Counter which this task will decrement upon completion
+    Khadi_Counter child_counter; // Counter which this task's children will decrement upon completion
+    B64 is_child;
 };
 
 
 struct Khadi_Fiber_Metadata {
     cothread_t id;
-    B64 has_been_assigned_a_task;
+    Khadi_Task *assigned_task;
+    B64 is_task_finished;
 };
 
 global_variable sem_t                 KHADI_GLOBAL_semaphore_task_threads_init;
@@ -75,6 +80,7 @@ global_variable Queue_Locked_Entry   *KHADI_GLOBAL_task_queue;
 
 global_variable thread_local int          KHADI_THREAD_LOCAL_cpu_id;
 global_variable thread_local Khadi_Fiber  KHADI_GLOBAL_thread_default_fiber_id;
+global_variable thread_local Khadi_Fiber  KHADI_GLOBAL_thread_current_fiber_id;
 
 KHADI_EXPORTED
 Khadi_Config* khadiCreate (void)
@@ -133,7 +139,7 @@ B32 khadiInitialize (Khadi_Config *khadi)
         KHADI_GLOBAL_fibers_ring = ringLockedCreate(cothread_t, khadi->fiber_count);
         for (Size i = 0; i < sbufElemin(khadi->fibers); i++) {
             for (Size j = 0; j < khadi->fibers[i].count; i++) {
-                cothread_t co = co_create((Uint)khadi->fibers[i].stack_size, NULL);
+                cothread_t co = co_create((Uint)khadi->fibers[i].stack_size, khadi__FiberFunction);
                 Khadi_Fiber_Metadata fm = {0};
                 fm.id = co;
                 mapInsert(KHADI_GLOBAL_fibers_metadata_map, hashInteger((Uptr)co), fm);
@@ -204,8 +210,6 @@ B32 khadiInitialize (Khadi_Config *khadi)
         }
     }
 
-
-
     return true;
 }
 
@@ -226,6 +230,15 @@ void khadiFinalize (Khadi_Config *khadi)
 }
 
 KHADI_INTERNAL
+Khadi_Fiber_Metadata* khadiFiberGetMetadata (Khadi_Fiber fiber)
+{
+    Khadi_Fiber_Metadata *fmp = mapGetRef(KHADI_GLOBAL_fibers_metadata_map,
+                                          hashInteger((Uptr)fiber));
+
+    return fmp;
+}
+
+KHADI_INTERNAL
 Khadi_Fiber khadiFiberAcquire (void)
 {
     cothread_t co;
@@ -236,16 +249,10 @@ Khadi_Fiber khadiFiberAcquire (void)
 KHADI_INTERNAL
 void khadiFiberRelease (Khadi_Fiber fiber)
 {
+    Khadi_Fiber_Metadata *fmp = khadiFiberGetMetadata(fiber);
+    fmp->is_task_finished = false;
+
     ringLockedPush(KHADI_GLOBAL_fibers_ring, fiber);
-}
-
-KHADI_INTERNAL
-Khadi_Fiber_Metadata* khadiFiberGetMetadata (Khadi_Fiber fiber)
-{
-    Khadi_Fiber_Metadata *fmp = mapGetRef(KHADI_GLOBAL_fibers_metadata_map,
-                                          hashInteger((Uptr)fiber));
-
-    return fmp;
 }
 
 KHADI_INTERNAL
@@ -254,7 +261,7 @@ B64 khadiFiberIsTaskFinished (Khadi_Fiber fiber)
     Khadi_Fiber_Metadata fm = mapLookup(KHADI_GLOBAL_fibers_metadata_map,
                                         hashInteger((Uptr)fiber));
 
-    B64 result = !(fm.has_been_assigned_a_task);
+    B64 result = fm.is_task_finished;
 
     return result;
 }
@@ -271,6 +278,22 @@ Khadi_Task* khadiTaskCreate (Khadi_Task_Function *func, void *arg)
 }
 
 KHADI_EXPORTED
+Khadi_Task *khadiTaskCreateChild (Khadi_Task_Function *func, void *arg)
+{
+    Khadi_Fiber_Metadata* fmp = khadiFiberGetMetadata (KHADI_GLOBAL_thread_current_fiber_id);
+    Khadi_Task *parent = fmp->assigned_task;
+
+    Khadi_Task *this = khadiTaskCreate(func, arg);
+
+    parent->child_counter++;
+    this->parent_counter = &parent->child_counter;
+
+    this->is_child = true;
+
+    return this;
+}
+
+KHADI_EXPORTED
 void khadiTaskDestroy (Khadi_Task *task)
 {
     task->func = NULL;
@@ -278,10 +301,18 @@ void khadiTaskDestroy (Khadi_Task *task)
     free(task);
 }
 
-KHADI_INTERNAL
+KHADI_EXPORTED
 void khadiTaskSubmit (Khadi_Task *task)
 {
     queueLockedEnqueue(KHADI_GLOBAL_task_queue, &task->queue_entry);
+}
+
+KHADI_EXPORTED
+void khadiTaskSubmitMany (Khadi_Task **task, Size count)
+{
+    for (Size i = 0; i < count; i++) {
+        queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(task[i])->queue_entry);
+    }
 }
 
 KHADI_INTERNAL
@@ -297,6 +328,9 @@ Khadi_Task* khadiTaskAccept (void)
 KHADI_INTERNAL
 void khadiTaskAssignFiber (Khadi_Task *task, Khadi_Fiber fiber)
 {
+    Khadi_Fiber_Metadata *fmp = khadiFiberGetMetadata(fiber);
+    fmp->is_task_finished = false;
+
     task->assigned_fiber = fiber;
 }
 
@@ -310,7 +344,9 @@ Khadi_Fiber khadiTaskRetriveFiber (Khadi_Task *task)
 KHADI_INTERNAL
 void khadiTaskExecute (Khadi_Task *task)
 {
+    KHADI_GLOBAL_thread_current_fiber_id = task->assigned_fiber;
     co_switch(task->assigned_fiber);
+    KHADI_GLOBAL_thread_current_fiber_id = KHADI_GLOBAL_thread_default_fiber_id;
 }
 
 KHADI_INTERNAL
@@ -327,7 +363,9 @@ B64 khadiTaskIsReady (Khadi_Task *task)
 KHADI_INTERNAL
 void khadiTaskMarkDone(Khadi_Task *task)
 {
-    atomic_fetch_sub(task->parent_counter, 1);
+    if (task->is_child) {
+        atomic_fetch_sub(task->parent_counter, 1);
+    }
 }
 
 KHADI_INTERNAL
@@ -336,11 +374,13 @@ void* khadi__ThreadTaskFunction (void *arg) {
 
     pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
-    KHADI_THREAD_LOCAL_cpu_id = sched_getcpu();
-    KHADI_GLOBAL_thread_default_fiber_id = co_active();
-    sem_post(&KHADI_GLOBAL_semaphore_task_threads_init);
+    {
+        KHADI_THREAD_LOCAL_cpu_id = sched_getcpu();
+        KHADI_GLOBAL_thread_default_fiber_id = co_active();
+        sem_post(&KHADI_GLOBAL_semaphore_task_threads_init);
 
-    printf("Task CPU: %zu\n", khadiCurrentCPU());
+        printf("Task CPU: %zu\n", khadiCurrentCPU());
+    }
 
     while (true) {
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -383,4 +423,17 @@ void* khadi__ThreadDataFunction (void* arg) {
     // ...
 
     return NULL;
+}
+
+KHADI_INTERNAL
+noreturn
+void khadi__FiberFunction (void)
+{
+    while (true) {
+        Khadi_Fiber_Metadata *fmp = khadiFiberGetMetadata(KHADI_GLOBAL_thread_current_fiber_id);
+        Khadi_Task *task = fmp->assigned_task;
+        (task->func)(task->arg);
+        fmp->is_task_finished = true;
+        co_switch(KHADI_GLOBAL_thread_default_fiber_id);
+    }
 }
