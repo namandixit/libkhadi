@@ -31,31 +31,40 @@ typedef _Atomic(U64) Khadi_Counter;
 typedef KHADI_TASK_FUNCTION(Khadi_Task_Function);
 typedef struct Khadi_Task Khadi_Task;
 
-Size khadiGetCPUCount (void);
-Size khadiCurrentCPU  (void);
+#define KHADI_ACTION_FUNCTION(func_name) void func_name (void * arg)
+typedef KHADI_ACTION_FUNCTION(Khadi_Action_Function);
+typedef struct Khadi_Action Khadi_Action;
 
-Khadi_Config* khadiCreate (void);
+Size khadiEnvGetCPUCount (void);
+Size khadiEnvCurrentCPU  (void);
 
-void khadiSetMainCPU (Khadi_Config *k, Uint cpu);
-void khadiAddTaskCPU (Khadi_Config *k, Uint cpu);
-void khadiAddDataCPU (Khadi_Config *k, Uint cpu, Uint thread_count);
-void khadiAddFibers  (Khadi_Config *k, Size stack_size, Size count);
-
-B32  khadiInitialize (Khadi_Config *khadi);
-void khadiFinalize   (Khadi_Config *khadi);
+Khadi_Config* khadiConfigCreate       (void);
+void          khadiConfigSetMainCPU   (Khadi_Config *k, Uint cpu);
+void          khadiConfigAddTaskCPU   (Khadi_Config *k, Uint cpu);
+void          khadiConfigAddActionCPU (Khadi_Config *k, Uint cpu, Uint thread_count, Khadi_Action_Function *function);
+void          khadiConfigAddFibers    (Khadi_Config *k, Size stack_size, Size count);
+B32           khadiConfigConstruct    (Khadi_Config *khadi);
+void          khadiConfigDestruct     (Khadi_Config *khadi);
 
 Khadi_Counter* khadiCounterCreate  (void);
 void           khadiCounterDestroy (Khadi_Counter *counter);
 Khadi_Counter  khadiCounterGet     (Khadi_Counter *counter);
 
-Khadi_Task* khadiTaskCreate  (Khadi_Task_Function *func, void *arg);
-void        khadiTaskDestroy (Khadi_Task *task);
-
+Khadi_Task* khadiTaskCreate          (Khadi_Task_Function *func, void *arg);
+void        khadiTaskDestroy         (Khadi_Task *task);
 void        khadiTaskSync            (Khadi_Counter *counter);
 void        khadiTaskSubmitAsync     (Khadi_Task *task, Khadi_Counter *counter);
 void        khadiTaskSubmitAsyncMany (Khadi_Task **task, Size count, Khadi_Counter *counter);
 void        khadiTaskSubmitSync      (Khadi_Task *task, Khadi_Counter *counter);
 void        khadiTaskSubmitSyncMany  (Khadi_Task **task, Size count, Khadi_Counter *counter);
+
+Khadi_Action* khadiActionCreate          (void *command);
+void          khadiActionDestroy         (Khadi_Action *action);
+void          khadiActionSync            (Khadi_Counter *counter);
+void          khadiActionSubmitAsync     (Khadi_Action *action, Khadi_Counter *counter);
+void          khadiActionSubmitAsyncMany (Khadi_Action **action, Size count, Khadi_Counter *counter);
+void          khadiActionSubmitSync      (Khadi_Action *action, Khadi_Counter *counter);
+void          khadiActionSubmitSyncMany  (Khadi_Action **action, Size count, Khadi_Counter *counter);
 
 #define LIBKHADI_H_INCLUDE_GUARD
 #endif
