@@ -60,6 +60,8 @@ struct Khadi_Config {
 struct Khadi_Task {
     Khadi_Task_Function *func;
     void *arg;
+    B64 is_launcher;
+    Khadi_Launcher_Function *launcher_finalizer;
     Khadi_Fiber assigned_fiber;
     Queue_Locked_Entry queue_entry;
     Khadi_Counter *parent_counter; // Counter which this task will decrement upon completion
@@ -420,6 +422,24 @@ void khadiTaskSubmitSyncMany (Khadi_Task **tasks, Size count, Khadi_Counter *cou
     khadiTaskSync(counter);
 }
 
+KHADI_EXPORTED
+void khadiTaskLaunch (Khadi_Launcher_Function *initializer,
+                      Khadi_Launcher_Function *finalizer,
+                      Khadi_Task_Function *func, void *arg)
+{
+    Khadi_Task *task = khadiTaskCreate(func, arg);
+    task->is_launcher = true;
+    task->launcher_finalizer = finalizer;
+
+    Khadi_Counter *counter = khadiCounterCreate();
+    khadiTaskSubmitAsync(task, counter);
+
+    initializer();
+
+    khadiCounterDestroy(counter);
+    khadiTaskDestroy(task);
+}
+
 KHADI_INTERNAL
 Khadi_Task* khadiTaskAccept (void)
 {
@@ -512,6 +532,10 @@ void* khadiThreadTaskFunction (void *arg) {
             khadiTaskMarkDone(task);
 
             khadiFiberRelease(fiber);
+
+            if (task->is_launcher) {
+                task->launcher_finalizer();
+            }
         } else {
             queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(task)->queue_entry);
         }

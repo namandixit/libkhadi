@@ -35,6 +35,9 @@ typedef struct Khadi_Task Khadi_Task;
 typedef KHADI_ACTION_FUNCTION(Khadi_Action_Function);
 typedef struct Khadi_Action Khadi_Action;
 
+#define KHADI_LAUNCHER_FUNCTION(func_name) void func_name (void)
+typedef KHADI_LAUNCHER_FUNCTION(Khadi_Launcher_Function);
+
 Size khadiEnvGetCPUCount (void);
 Size khadiEnvCurrentCPU  (void);
 
@@ -57,6 +60,9 @@ void        khadiTaskSubmitAsync     (Khadi_Task *task, Khadi_Counter *counter);
 void        khadiTaskSubmitAsyncMany (Khadi_Task **task, Size count, Khadi_Counter *counter);
 void        khadiTaskSubmitSync      (Khadi_Task *task, Khadi_Counter *counter);
 void        khadiTaskSubmitSyncMany  (Khadi_Task **task, Size count, Khadi_Counter *counter);
+void        khadiTaskLaunch          (Khadi_Launcher_Function *initializer,
+                                      Khadi_Launcher_Function *finalizer,
+                                      Khadi_Task_Function *func, void *arg);
 
 Khadi_Action* khadiActionCreate          (void *command);
 void          khadiActionDestroy         (Khadi_Action *action);
