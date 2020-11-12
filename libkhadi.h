@@ -63,6 +63,7 @@ void        khadiTaskSubmitSyncMany  (Khadi_Task **task, Size count, Khadi_Count
 void        khadiTaskLaunch          (Khadi_Launcher_Function *initializer,
                                       Khadi_Launcher_Function *finalizer,
                                       Khadi_Task_Function *func, void *arg);
+void        khadiTaskSuspend         (void);
 
 Khadi_Action* khadiActionCreate          (void *command);
 void          khadiActionDestroy         (Khadi_Action *action);
