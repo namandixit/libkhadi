@@ -378,16 +378,6 @@ void khadiTaskDestroy (Khadi_Task *task)
 }
 
 KHADI_EXPORTED
-void khadiTaskSuspend (void)
-{
-    Khadi_Fiber_Metadata* fmp = khadiFiberGetMetadataThreadCurrent();
-    Khadi_Task *task = fmp->assigned_task;
-
-    queueLockedEnqueue(KHADI_GLOBAL_task_queue, &task->queue_entry);
-    khadiFiberSwitchToThreadDefault();
-}
-
-KHADI_EXPORTED
 void khadiTaskSync (Khadi_Counter *counter)
 {
     Khadi_Fiber_Metadata* fmp = khadiFiberGetMetadataThreadCurrent();
@@ -396,6 +386,14 @@ void khadiTaskSync (Khadi_Counter *counter)
     task->child_counter = counter;
     khadiFiberSwitchToThreadDefault();
     task->child_counter = NULL;
+}
+
+KHADI_EXPORTED
+void khadiTaskSuspend (void)
+{
+    Khadi_Counter *counter = khadiCounterCreate();
+    khadiTaskSync(counter);
+    khadiCounterDestroy(counter);
 }
 
 KHADI_EXPORTED
