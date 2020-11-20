@@ -49,9 +49,9 @@ void          khadiConfigAddFibers    (Khadi_Config *k, Size stack_size, Size co
 B32           khadiConfigConstruct    (Khadi_Config *khadi);
 void          khadiConfigDestruct     (Khadi_Config *khadi);
 
-Khadi_Counter* khadiCounterCreate  (void);
-void           khadiCounterDestroy (Khadi_Counter *counter);
-Khadi_Counter  khadiCounterGet     (Khadi_Counter *counter);
+Khadi_Counter* khadiCounterCreate    (void);
+void           khadiCounterDestroy   (Khadi_Counter *counter);
+U64            khadiCounterIsEqualTo (Khadi_Counter *counter, U64 value);
 
 Khadi_Task* khadiTaskCreate          (Khadi_Task_Function *func, void *arg);
 void        khadiTaskDestroy         (Khadi_Task *task);

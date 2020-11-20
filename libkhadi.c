@@ -21,6 +21,9 @@
 #define LIBCO_MP
 #include "libco/libco.c"
 
+#if defined(LIBCO_MP)
+#endif
+
 #if defined(COMPILER_CLANG)
 # pragma clang diagnostic pop
 #endif
@@ -353,9 +356,11 @@ void khadiCounterDestroy (Khadi_Counter *counter)
 }
 
 KHADI_EXPORTED
-Khadi_Counter khadiCounterGet (Khadi_Counter *counter)
+U64 khadiCounterIsEqualTo (Khadi_Counter *counter, U64 value)
 {
-    return *counter;
+    U64 v2 = value;
+    B32 equal = atomic_compare_exchange_strong(counter, &v2, value);
+    return equal;
 }
 
 KHADI_EXPORTED
