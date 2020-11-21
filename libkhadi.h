@@ -7,22 +7,6 @@
 
 #include "nlib/nlib.h"
 
-#include <sched.h>
-#include <pthread.h>
-#include <semaphore.h>
-
-#if defined(COMPILER_CLANG)
-# pragma clang diagnostic push
-# pragma clang diagnostic ignored "-Wstrict-prototypes"
-#endif
-
-#define LIBCO_MP
-#include "libco/libco.h"
-
-#if defined(COMPILER_CLANG)
-# pragma clang diagnostic pop
-#endif
-
 typedef struct Khadi_Config Khadi_Config;
 
 typedef _Atomic(U64) Khadi_Counter;

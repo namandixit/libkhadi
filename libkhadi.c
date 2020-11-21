@@ -3,27 +3,42 @@
  * Notice: © Copyright 2020 Naman Dixit
  */
 
-#define KHADI_INTERNAL internal_function __attribute__ ((noinline))
-#define KHADI_EXPORTED __attribute__ ((noinline))
-
 #include "libkhadi.h"
+
+#if defined(COMPILER_GCC)
+# define KHADI_INTERNAL internal_function __attribute__ ((noipa))
+# define KHADI_EXPORTED __attribute__ ((noipa))
+#elif defined(COMPILER_CLANG)
+# define KHADI_INTERNAL internal_function __attribute__ ((optnone))
+# define KHADI_EXPORTED __attribute__ ((optnone))
+#else
+# error libkhadi only support GCC and Clang for now
+#endif
+
 #include <stdatomic.h>
 
-#if defined(COMPILER_CLANG)
-# pragma clang diagnostic push
-# pragma clang diagnostic ignored "-Wmacro-redefined"
-# pragma clang diagnostic ignored "-Wsign-conversion"
-# pragma clang diagnostic ignored "-Wmissing-noreturn"
-# pragma clang diagnostic ignored "-Wcast-qual"
-# pragma clang diagnostic ignored "-Wcast-align"
+#if defined(OS_LINUX)
+# include <sched.h>
+# include <pthread.h>
+# include <semaphore.h>
 #endif
 
 #define LIBCO_MP
-#include "libco/libco.c"
-
 #if defined(LIBCO_MP)
 #endif
 
+#include "libco/libco.h"
+
+#if defined(COMPILER_CLANG)
+# if defined(ARCH_X64)
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wsign-conversion"
+#  pragma clang diagnostic ignored "-Wmissing-noreturn"
+#  pragma clang diagnostic ignored "-Wcast-qual"
+#  pragma clang diagnostic ignored "-Wcast-align"
+# endif
+#endif
+#include "libco/libco.c"
 #if defined(COMPILER_CLANG)
 # pragma clang diagnostic pop
 #endif
