@@ -7,6 +7,11 @@
 
 #include "nlib/nlib.h"
 
+#define KHADI_DEFINE_THREAD_LOCAL_VARIABLE(type, var)  KHADI__DEFTLV(type, var)
+#define KHADI_DECLARE_THREAD_LOCAL_VARIABLE(type, var) KHADI__DECLTLV(KHADI_EXPORTED, type, var)
+#define KHADI_GET_THREAD_LOCAL_VARIABLE(var)           khadi__GetDeclaredTLS_ ## var()
+#define KHADI_SET_THREAD_LOCAL_VARIABLE(var, val)      khadi__SetDeclaredTLS_ ## var(val)
+
 typedef struct Khadi_Config Khadi_Config;
 
 typedef _Atomic(U64) Khadi_Counter;
@@ -56,6 +61,39 @@ void          khadiActionSubmitAsync     (Khadi_Action *action, Khadi_Counter *c
 void          khadiActionSubmitAsyncMany (Khadi_Action **action, Size count, Khadi_Counter *counter);
 void          khadiActionSubmitSync      (Khadi_Action *action, Khadi_Counter *counter);
 void          khadiActionSubmitSyncMany  (Khadi_Action **action, Size count, Khadi_Counter *counter);
+
+
+/* Macro implementation stuff */
+#if defined(COMPILER_GCC)
+# define KHADI_INTERNAL internal_function __attribute__ ((noipa))
+# define KHADI_EXPORTED __attribute__ ((noipa))
+#elif defined(COMPILER_CLANG)
+# define KHADI_INTERNAL internal_function __attribute__ ((optnone))
+# define KHADI_EXPORTED __attribute__ ((optnone))
+#else
+# error libkhadi only support GCC and Clang for now
+#endif
+
+#define KHADI__DECLTLV(visible, type, var)                              \
+    global_variable thread_local type KHADI__DECLARED_TLS_Var ## var;   \
+    visible                                                             \
+    type khadi__GetDeclaredTLS_ ## var (void) {                         \
+        type val = KHADI__DECLARED_TLS_Var ## var;                      \
+        __asm__ volatile("");                                           \
+        return val;                                                     \
+    }                                                                   \
+    visible                                                             \
+    void khadi__SetDeclaredTLS_ ## var (type val) {                     \
+        KHADI__DECLARED_TLS_Var ## var = val;                           \
+        __asm__ volatile("");                                           \
+        return;                                                         \
+    }                                                                   \
+    _Static_assert(true, "To swallow the ending semicolon")
+
+#define KHADI__DEFTLV(type, var)                        \
+    type khadi__GetDeclaredTLS_ ## var (void);          \
+    void khadi__SetDeclaredTLS_ ## var (type val);
+
 
 #define LIBKHADI_H_INCLUDE_GUARD
 #endif

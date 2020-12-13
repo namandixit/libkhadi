@@ -5,15 +5,7 @@
 
 #include "libkhadi.h"
 
-#if defined(COMPILER_GCC)
-# define KHADI_INTERNAL internal_function __attribute__ ((noipa))
-# define KHADI_EXPORTED __attribute__ ((noipa))
-#elif defined(COMPILER_CLANG)
-# define KHADI_INTERNAL internal_function __attribute__ ((optnone))
-# define KHADI_EXPORTED __attribute__ ((optnone))
-#else
-# error libkhadi only support GCC and Clang for now
-#endif
+#define KHADI__DECL_TLS(type, var) KHADI__DECLTLV(KHADI_INTERNAL, type, var)
 
 #include <stdatomic.h>
 
@@ -98,17 +90,17 @@ struct Khadi_Fiber_Metadata {
     B64 is_task_finished;
 };
 
-global_variable sem_t                  KHADI_GLOBAL_semaphore_task_threads_init;
-global_variable sem_t                  KHADI_GLOBAL_semaphore_action_thread_init;
+global_variable sem_t                  KG__semaphore_task_threads_init;
+global_variable sem_t                  KG__semaphore_action_thread_init;
 
-global_variable Khadi_Fiber_Metadata  *KHADI_GLOBAL_fibers_metadata_map;
-global_variable Khadi_Fiber           *KHADI_GLOBAL_fibers_ring;
-global_variable Queue_Locked_Entry    *KHADI_GLOBAL_task_queue;
-global_variable Queue_Locked_Entry    *KHADI_GLOBAL_action_queue;
+global_variable Khadi_Fiber_Metadata  *KG__fibers_metadata_map;
+global_variable Khadi_Fiber           *KG__fibers_ring;
+global_variable Queue_Locked_Entry    *KG__task_queue;
+global_variable Queue_Locked_Entry    *KG__action_queue;
 
-global_variable thread_local int          KHADI_GLOBAL_THREAD_cpu_id;
-global_variable thread_local Khadi_Fiber  KHADI_GLOBAL_THREAD_default_fiber_id;
-global_variable thread_local Khadi_Fiber  KHADI_GLOBAL_THREAD_current_fiber_id;
+KHADI__DECL_TLS(int,         KGTLV__cpu_id);
+KHADI__DECL_TLS(Khadi_Fiber, KGTLV__default_fiber_id);
+KHADI__DECL_TLS(Khadi_Fiber, KGTLV__current_fiber_id);
 
 KHADI_EXPORTED
 Size khadiEnvGetCPUCount (void)
@@ -130,7 +122,7 @@ Size khadiEnvGetCPUCount (void)
 KHADI_EXPORTED
 Size khadiEnvCurrentCPU (void)
 {
-    return (Size)KHADI_GLOBAL_THREAD_cpu_id;
+    return (Size)KHADI_GET_THREAD_LOCAL_VARIABLE(KGTLV__cpu_id);
 }
 
 KHADI_EXPORTED
@@ -181,24 +173,24 @@ KHADI_EXPORTED
 B32 khadiConfigConstruct (Khadi_Config *khadi)
 {
     { // Create Fibers
-        KHADI_GLOBAL_fibers_ring = ringLockedCreate(cothread_t, khadi->fiber_count);
+        KG__fibers_ring = ringLockedCreate(cothread_t, khadi->fiber_count);
         for (Size i = 0; i < sbufElemin(khadi->fibers); i++) {
             for (Size j = 0; j < khadi->fibers[i].count; j++) {
                 cothread_t co = co_create((Uint)khadi->fibers[i].stack_size, khadiFiberFunction);
                 Khadi_Fiber_Metadata fm = {0};
                 fm.id = co;
-                mapInsert(KHADI_GLOBAL_fibers_metadata_map, hashInteger((Uptr)co), fm);
-                ringLockedPush(KHADI_GLOBAL_fibers_ring, co);
+                mapInsert(KG__fibers_metadata_map, hashInteger((Uptr)co), fm);
+                ringLockedPush(KG__fibers_ring, co);
             }
         }
     }
 
     { // Task
-        KHADI_GLOBAL_task_queue = queueLockedCreate();
+        KG__task_queue = queueLockedCreate();
     }
 
     { // Action
-        KHADI_GLOBAL_action_queue = queueLockedCreate();
+        KG__action_queue = queueLockedCreate();
     }
 
     { // Pin main thread to Core #0
@@ -210,7 +202,7 @@ B32 khadiConfigConstruct (Khadi_Config *khadi)
     }
 
     { // Create Task and Data threads
-        sem_init(&KHADI_GLOBAL_semaphore_task_threads_init, 0, 0);
+        sem_init(&KG__semaphore_task_threads_init, 0, 0);
         { // Task threads
             for (Size i = 0; i < sbufElemin(khadi->task_cpus); i++) {
                 cpu_set_t cpu;
@@ -229,7 +221,7 @@ B32 khadiConfigConstruct (Khadi_Config *khadi)
             }
         }
 
-        sem_init(&KHADI_GLOBAL_semaphore_action_thread_init, 0, 0);
+        sem_init(&KG__semaphore_action_thread_init, 0, 0);
         { // Action threads
             for (Size i = 0; i < sbufElemin(khadi->action_cpus); i++) {
                 for (Size j = 0; j < khadi->action_cpus[i].thread_count; j++) {
@@ -253,11 +245,11 @@ B32 khadiConfigConstruct (Khadi_Config *khadi)
 
         { // Wait for threads to be created
             for (Size i = 0; i < sbufElemin(khadi->task_threads); i++) {
-                sem_wait(&KHADI_GLOBAL_semaphore_task_threads_init);
+                sem_wait(&KG__semaphore_task_threads_init);
             }
 
             for (Size i = 0; i < sbufElemin(khadi->action_threads); i++) {
-                sem_wait(&KHADI_GLOBAL_semaphore_action_thread_init);
+                sem_wait(&KG__semaphore_action_thread_init);
             }
         }
     }
@@ -284,7 +276,7 @@ void khadiConfigDestruct (Khadi_Config *khadi)
 KHADI_INTERNAL
 Khadi_Fiber_Metadata* khadiFiberGetMetadata (Khadi_Fiber fiber)
 {
-    Khadi_Fiber_Metadata *fmp = mapGetRef(KHADI_GLOBAL_fibers_metadata_map,
+    Khadi_Fiber_Metadata *fmp = mapGetRef(KG__fibers_metadata_map,
                                           hashInteger((Uptr)fiber));
 
     return fmp;
@@ -293,7 +285,8 @@ Khadi_Fiber_Metadata* khadiFiberGetMetadata (Khadi_Fiber fiber)
 KHADI_INTERNAL
 Khadi_Fiber_Metadata* khadiFiberGetMetadataThreadCurrent (void)
 {
-    Khadi_Fiber_Metadata *result = khadiFiberGetMetadata(KHADI_GLOBAL_THREAD_current_fiber_id);
+    Khadi_Fiber current_fiber_id = KHADI_GET_THREAD_LOCAL_VARIABLE(KGTLV__current_fiber_id);
+    Khadi_Fiber_Metadata *result = khadiFiberGetMetadata(current_fiber_id);
     return result;
 }
 
@@ -301,7 +294,7 @@ KHADI_INTERNAL
 Khadi_Fiber khadiFiberAcquire (void)
 {
     cothread_t co;
-    ringLockedPull(KHADI_GLOBAL_fibers_ring, &co);
+    ringLockedPull(KG__fibers_ring, &co);
     return co;
 }
 
@@ -311,13 +304,13 @@ void khadiFiberRelease (Khadi_Fiber fiber)
     Khadi_Fiber_Metadata *fmp = khadiFiberGetMetadata(fiber);
     fmp->is_task_finished = false;
 
-    ringLockedPush(KHADI_GLOBAL_fibers_ring, fiber);
+    ringLockedPush(KG__fibers_ring, fiber);
 }
 
 KHADI_INTERNAL
 B64 khadiFiberIsTaskFinished (Khadi_Fiber fiber)
 {
-    Khadi_Fiber_Metadata fm = mapLookup(KHADI_GLOBAL_fibers_metadata_map,
+    Khadi_Fiber_Metadata fm = mapLookup(KG__fibers_metadata_map,
                                         hashInteger((Uptr)fiber));
 
     B64 result = fm.is_task_finished;
@@ -328,19 +321,21 @@ B64 khadiFiberIsTaskFinished (Khadi_Fiber fiber)
 KHADI_INTERNAL
 void khadiFiberSwitchToThreadDefault (void)
 {
-    co_switch(KHADI_GLOBAL_THREAD_default_fiber_id);
+    Khadi_Fiber default_fiber_id = KHADI_GET_THREAD_LOCAL_VARIABLE(KGTLV__default_fiber_id);
+    co_switch(default_fiber_id);
 }
 
 KHADI_INTERNAL
 void khadiFiberSetThreadCurrent (Khadi_Fiber fiber)
 {
-    KHADI_GLOBAL_THREAD_current_fiber_id = fiber;
+    KHADI_SET_THREAD_LOCAL_VARIABLE(KGTLV__current_fiber_id, fiber);
 }
 
 KHADI_INTERNAL
 void khadiFiberResetThreadCurrent (void)
 {
-    KHADI_GLOBAL_THREAD_current_fiber_id = KHADI_GLOBAL_THREAD_default_fiber_id;
+    KHADI_SET_THREAD_LOCAL_VARIABLE(KGTLV__current_fiber_id,
+                                    KHADI_GET_THREAD_LOCAL_VARIABLE(KGTLV__default_fiber_id));
 }
 
 KHADI_INTERNAL
@@ -422,7 +417,7 @@ void khadiTaskSubmitAsync (Khadi_Task *task, Khadi_Counter *counter)
     atomic_fetch_add(counter, 1);
     task->parent_counter = counter;
 
-    queueLockedEnqueue(KHADI_GLOBAL_task_queue, &task->queue_entry);
+    queueLockedEnqueue(KG__task_queue, &task->queue_entry);
 }
 
 KHADI_EXPORTED
@@ -432,7 +427,7 @@ void khadiTaskSubmitAsyncMany (Khadi_Task **tasks, Size count, Khadi_Counter *co
 
     for (Size i = 0; i < count; i++) {
         tasks[i]->parent_counter = counter;
-        queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(tasks[i])->queue_entry);
+        queueLockedEnqueue(KG__task_queue, &(tasks[i])->queue_entry);
     }
 }
 
@@ -472,7 +467,7 @@ KHADI_INTERNAL
 Khadi_Task* khadiTaskAccept (void)
 {
     Queue_Locked_Entry *qr;
-    queueLockedDequeue(KHADI_GLOBAL_task_queue, qr);
+    queueLockedDequeue(KG__task_queue, qr);
     Khadi_Task *task = containerof(qr, Khadi_Task, queue_entry);
 
     return task;
@@ -531,9 +526,10 @@ void* khadiThreadTaskFunction (void *arg) {
     pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
     {
-        KHADI_GLOBAL_THREAD_cpu_id = sched_getcpu();
-        KHADI_GLOBAL_THREAD_default_fiber_id = co_active();
-        sem_post(&KHADI_GLOBAL_semaphore_task_threads_init);
+        KHADI_SET_THREAD_LOCAL_VARIABLE(KGTLV__cpu_id, sched_getcpu());
+        KHADI_SET_THREAD_LOCAL_VARIABLE(KGTLV__default_fiber_id, co_active());
+
+        sem_post(&KG__semaphore_task_threads_init);
 
         printf("Task CPU: %zu\n", khadiEnvCurrentCPU());
     }
@@ -544,7 +540,7 @@ void* khadiThreadTaskFunction (void *arg) {
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
         if (!khadiTaskIsReady(task)) {
-            queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(task)->queue_entry);
+            queueLockedEnqueue(KG__task_queue, &(task)->queue_entry);
             continue;
         }
 
@@ -565,7 +561,7 @@ void* khadiThreadTaskFunction (void *arg) {
                 task->launcher_finalizer();
             }
         } else {
-            queueLockedEnqueue(KHADI_GLOBAL_task_queue, &(task)->queue_entry);
+            queueLockedEnqueue(KG__task_queue, &(task)->queue_entry);
         }
     }
 
@@ -607,7 +603,7 @@ void khadiActionSubmitAsync (Khadi_Action *action, Khadi_Counter *counter)
     atomic_fetch_add(counter, 1);
     action->parent_counter = counter;
 
-    queueLockedEnqueue(KHADI_GLOBAL_action_queue, &action->queue_entry);
+    queueLockedEnqueue(KG__action_queue, &action->queue_entry);
 }
 
 KHADI_EXPORTED
@@ -617,7 +613,7 @@ void khadiActionSubmitAsyncMany (Khadi_Action **actions, Size count, Khadi_Count
 
     for (Size i = 0; i < count; i++) {
         actions[i]->parent_counter = counter;
-        queueLockedEnqueue(KHADI_GLOBAL_action_queue, &(actions[i])->queue_entry);
+        queueLockedEnqueue(KG__action_queue, &(actions[i])->queue_entry);
     }
 }
 
@@ -639,7 +635,7 @@ KHADI_INTERNAL
 Khadi_Action* khadiActionAccept (void)
 {
     Queue_Locked_Entry *qr;
-    queueLockedDequeue(KHADI_GLOBAL_action_queue, qr);
+    queueLockedDequeue(KG__action_queue, qr);
     Khadi_Action *action = containerof(qr, Khadi_Action, queue_entry);
 
     return action;
@@ -660,8 +656,8 @@ void* khadiThreadActionFunction (void* arg) {
     pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
     {
-        KHADI_GLOBAL_THREAD_cpu_id = sched_getcpu();
-        sem_post(&KHADI_GLOBAL_semaphore_action_thread_init);
+        KHADI_SET_THREAD_LOCAL_VARIABLE(KGTLV__cpu_id, sched_getcpu());
+        sem_post(&KG__semaphore_action_thread_init);
 
         printf("Action CPU: %zu\n", khadiEnvCurrentCPU());
     }
