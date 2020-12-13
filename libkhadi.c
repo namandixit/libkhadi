@@ -393,7 +393,7 @@ void khadiTaskDestroy (Khadi_Task *task)
 }
 
 KHADI_EXPORTED
-void khadiTaskSync (Khadi_Counter *counter)
+void khadiTaskWaitOnCounter (Khadi_Counter *counter)
 {
     Khadi_Fiber_Metadata* fmp = khadiFiberGetMetadataThreadCurrent();
     Khadi_Task *task = fmp->assigned_task;
@@ -407,7 +407,7 @@ KHADI_EXPORTED
 void khadiTaskSuspend (void)
 {
     Khadi_Counter *counter = khadiCounterCreate();
-    khadiTaskSync(counter);
+    khadiTaskWaitOnCounter(counter);
     khadiCounterDestroy(counter);
 }
 
@@ -435,14 +435,14 @@ KHADI_EXPORTED
 void khadiTaskSubmitSync (Khadi_Task *task, Khadi_Counter *counter)
 {
     khadiTaskSubmitAsync(task, counter);
-    khadiTaskSync(counter);
+    khadiTaskWaitOnCounter(counter);
 }
 
 KHADI_EXPORTED
 void khadiTaskSubmitSyncMany (Khadi_Task **tasks, Size count, Khadi_Counter *counter)
 {
     khadiTaskSubmitAsyncMany(tasks, count, counter);
-    khadiTaskSync(counter);
+    khadiTaskWaitOnCounter(counter);
 }
 
 KHADI_EXPORTED

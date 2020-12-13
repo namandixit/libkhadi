@@ -44,7 +44,7 @@ U64            khadiCounterIsEqualTo (Khadi_Counter *counter, U64 value);
 
 Khadi_Task* khadiTaskCreate          (Khadi_Task_Function *func, void *arg);
 void        khadiTaskDestroy         (Khadi_Task *task);
-void        khadiTaskSync            (Khadi_Counter *counter);
+void        khadiTaskWaitOnCounter   (Khadi_Counter *counter);
 void        khadiTaskSubmitAsync     (Khadi_Task *task, Khadi_Counter *counter);
 void        khadiTaskSubmitAsyncMany (Khadi_Task **task, Size count, Khadi_Counter *counter);
 void        khadiTaskSubmitSync      (Khadi_Task *task, Khadi_Counter *counter);
