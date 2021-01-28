@@ -2,7 +2,7 @@
  * Creator: Naman Dixit
  * Notice: © Copyright 2018 Naman Dixit
  * SPDX-License-Identifier: 0BSD
- * Version: 59
+ * Version: 71
  */
 
 #if !defined(NLIB_H_INCLUDE_GUARD)
@@ -777,7 +777,9 @@ typedef enum Print_Flags {
 
 // FIXME(naman): This needs to change to either yield or call a callback every n characters,
 // so that functions using this don't have to call it twice (once to get size, then to
-// get the actual characters).
+// get the actual characters) in cases when the buffer is too small the first time.
+// FIXME(naman): Replace memcpy, etc. with loops so that atleast some of the characters
+// can get copied if the buffer is too small. Once this is done, uncomment sbufPrintSized()
 header_function
 Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_list va)
 {
@@ -789,7 +791,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
 #  define IS_OUTPUT_RESUMABLE(arg__space)       \
     do {                                        \
         if (resume_output &&                    \
-            ((buffer == NLIB_COMPAT_NULL) ||                \
+            ((buffer == NLIB_COMPAT_NULL) ||    \
              ((Uptr)(buf + (Uptr)arg__space) >= \
               (Uptr)(buffer + buffer_size)))) { \
             resume_output = false;              \
@@ -3339,7 +3341,7 @@ typedef struct Sbuf_Header {
 #  define sbufOnePastLast(sb)  ((sb) + sbuf_Len(sb))
 
 # define sbufPrint(sb, ...)         ((sb) = sbuf_Print((sb), __VA_ARGS__))
-# define sbufPrintSized(sb, s, ...) ((sb) = sbuf_PrintSized((sb), s, __VA_ARGS__))
+//# define sbufPrintSized(sb, s, ...) ((sb) = sbuf_PrintSized((sb), s, __VA_ARGS__))
 
 # define sbufUnsortedRemove(sb, i) (((sb)[(i)] = (sb)[sbuf_Len(sb) - 1]), \
                                    ((sbuf_GetHeader(sb)->len)--))
@@ -3443,24 +3445,21 @@ Char* sbuf_Print (Char *buf, const Char *fmt, ...)
     return buf;
 }
 
-header_function
-Char* sbuf_PrintSized (Char *buf, Size size, const Char *fmt, ...)
-{
-    size_t cap = sbufMaxElemin(buf) - sbufElemin(buf);
+/* header_function */
+/* Char* sbuf_PrintSized (Char *buf, Size size, const Char *fmt, ...) */
+/* { */
+/*     if ((size + sbufElemin(buf)) > sbufMaxElemin(buf)) { */
+/*         sbufResize(buf, size + sbufElemin(buf) + 1); */
+/*     } */
 
-    if (size > cap) {
-        sbufResize(buf, sbufSizeof(buf) + size);
-    }
+/*     va_list args; */
+/*     va_start(args, fmt); */
+/*     printStringVarArg(sbufOnePastLast(buf), size + 1, fmt, args); */
+/*     va_end(args); */
 
-    size_t new_cap = sbufMaxSizeof(buf) - sbufSizeof(buf);
-    va_list args;
-    va_start(args, fmt);
-    Size n = 1 + printStringVarArg(sbufOnePastLast(buf), new_cap, fmt, args);
-    va_end(args);
-
-    sbuf_GetHeader(buf)->len += (n - 1);
-    return buf;
-}
+/*     sbuf_GetHeader(buf)->len += size; */
+/*     return buf; */
+/* } */
 #  if defined(COMPILER_CLANG)
 #   pragma clang diagnostic pop // -Wformat-nonliteral
 #  endif
