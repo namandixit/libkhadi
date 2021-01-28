@@ -2,7 +2,7 @@
  * Creator: Naman Dixit
  * Notice: © Copyright 2018 Naman Dixit
  * SPDX-License-Identifier: 0BSD
- * Version: 57
+ * Version: 59
  */
 
 #if !defined(NLIB_H_INCLUDE_GUARD)
@@ -4204,6 +4204,7 @@ typedef struct Map_Userdata {
                 insertion_index = sbufElemin((_map)) - 1;               \
             }                                                           \
                                                                         \
+            shdr = sbuf_GetHeader((_map));                              \
             htInsert(&((Map_Userdata*)shdr->userdata)->table, (_key), insertion_index); \
         }                                                               \
     } while (0)
