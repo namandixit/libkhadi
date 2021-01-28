@@ -3338,7 +3338,8 @@ typedef struct Sbuf_Header {
 #  define sbufMaxElemin(sb)    (sbuf_Cap(sb))
 #  define sbufOnePastLast(sb)  ((sb) + sbuf_Len(sb))
 
-# define sbufPrint(sb, ...) ((sb) = sbuf_Print((sb), __VA_ARGS__))
+# define sbufPrint(sb, ...)       ((sb) = sbuf_Print((sb), __VA_ARGS__))
+# define sbufPrintSized(sb, s...) ((sb) = sbuf_PrintSized((sb), s, __VA_ARGS__))
 
 # define sbufUnsortedRemove(sb, i) (((sb)[(i)] = (sb)[sbuf_Len(sb) - 1]), \
                                    ((sbuf_GetHeader(sb)->len)--))
@@ -3421,7 +3422,7 @@ void* sbuf_Resize (void *buf, Size elem_count, Size elem_size)
 __attribute__((format(__printf__, 2, 3)))
 #  endif
 header_function
-Char* sbuf_Print(Char *buf, const Char *fmt, ...)
+Char* sbuf_Print (Char *buf, const Char *fmt, ...)
 {
     va_list args;
 
@@ -3437,6 +3438,25 @@ Char* sbuf_Print(Char *buf, const Char *fmt, ...)
         n = 1 + printStringVarArg(sbufOnePastLast(buf), new_cap, fmt, args);
         va_end(args);
     }
+
+    sbuf_GetHeader(buf)->len += (n - 1);
+    return buf;
+}
+
+header_function
+Char* sbuf_PrintSized (Char *buf, Size size, const Char *fmt, ...)
+{
+    size_t cap = sbufMaxElemin(buf) - sbufElemin(buf);
+
+    if (size > cap) {
+        sbufResize(buf, sbufSizeof(buf) + size);
+    }
+
+    size_t new_cap = sbufMaxSizeof(buf) - sbufSizeof(buf);
+    va_list args;
+    va_start(args, fmt);
+    n = 1 + printStringVarArg(sbufOnePastLast(buf), new_cap, fmt, args);
+    va_end(args);
 
     sbuf_GetHeader(buf)->len += (n - 1);
     return buf;
