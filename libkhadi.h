@@ -5,7 +5,7 @@
 
 #if !defined(LIBKHADI_H_INCLUDE_GUARD)
 
-#include "nlib/nlib.h"
+#include "nlib.h"
 
 #define KHADI_DEFINE_THREAD_LOCAL_VARIABLE(type, var)  KHADI__DEFTLV(type, var)
 #define KHADI_DECLARE_THREAD_LOCAL_VARIABLE(type, var) KHADI__DECLTLV(KHADI_EXPORTED, type, var)

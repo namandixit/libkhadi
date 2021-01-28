@@ -1,6 +1,3 @@
 [submodule "libco"]
 	path = libco
 	url = https://github.com/higan-emu/libco
-[submodule "nlib"]
-	path = nlib
-	url = https://github.com/namandixit/nlib
