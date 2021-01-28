@@ -2,7 +2,7 @@
  * Creator: Naman Dixit
  * Notice: © Copyright 2018 Naman Dixit
  * SPDX-License-Identifier: 0BSD
- * Version: 54
+ * Version: 57
  */
 
 #if !defined(NLIB_H_INCLUDE_GUARD)
@@ -3338,8 +3338,8 @@ typedef struct Sbuf_Header {
 #  define sbufMaxElemin(sb)    (sbuf_Cap(sb))
 #  define sbufOnePastLast(sb)  ((sb) + sbuf_Len(sb))
 
-# define sbufPrint(sb, ...)       ((sb) = sbuf_Print((sb), __VA_ARGS__))
-# define sbufPrintSized(sb, s...) ((sb) = sbuf_PrintSized((sb), s, __VA_ARGS__))
+# define sbufPrint(sb, ...)         ((sb) = sbuf_Print((sb), __VA_ARGS__))
+# define sbufPrintSized(sb, s, ...) ((sb) = sbuf_PrintSized((sb), s, __VA_ARGS__))
 
 # define sbufUnsortedRemove(sb, i) (((sb)[(i)] = (sb)[sbuf_Len(sb) - 1]), \
                                    ((sbuf_GetHeader(sb)->len)--))
@@ -3455,7 +3455,7 @@ Char* sbuf_PrintSized (Char *buf, Size size, const Char *fmt, ...)
     size_t new_cap = sbufMaxSizeof(buf) - sbufSizeof(buf);
     va_list args;
     va_start(args, fmt);
-    n = 1 + printStringVarArg(sbufOnePastLast(buf), new_cap, fmt, args);
+    Size n = 1 + printStringVarArg(sbufOnePastLast(buf), new_cap, fmt, args);
     va_end(args);
 
     sbuf_GetHeader(buf)->len += (n - 1);
