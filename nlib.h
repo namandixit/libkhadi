@@ -2,7 +2,7 @@
  * Creator: Naman Dixit
  * Notice: © Copyright 2018 Naman Dixit
  * SPDX-License-Identifier: 0BSD
- * Version: 71
+ * Version: 73
  */
 
 #if !defined(NLIB_H_INCLUDE_GUARD)
@@ -3310,6 +3310,9 @@ typedef struct Sbuf_Header {
 
 #  define sbuf_Len(sb)         ((sb) ? sbuf_GetHeader(sb)->len : 0U)
 #  define sbuf_Cap(sb)         ((sb) ? sbuf_GetHeader(sb)->cap : 0U)
+
+#  define sbufSetLen(sb)         sbuf_GetHeader(sb)->len
+#  define sbufSetCap(sb)         sbuf_GetHeader(sb)->cap
 
 #  define sbufCreate(t, m, s)  sbuf_CreateFixed(sizeof(t), m, s)
 // NOTE(naman): In sbufAdd, we check if there is enough space even after growing the sbuf
