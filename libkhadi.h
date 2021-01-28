@@ -63,7 +63,7 @@ void          khadiActionSubmitSync      (Khadi_Action *action, Khadi_Counter *c
 void          khadiActionSubmitSyncMany  (Khadi_Action **action, Size count, Khadi_Counter *counter);
 
 
-/* Macro implementation stuff */
+/* Internal implementation details, put here due to the following being a macro */
 #if defined(COMPILER_GCC)
 # define KHADI_INTERNAL internal_function __attribute__ ((noipa))
 # define KHADI_EXPORTED __attribute__ ((noipa))
@@ -75,16 +75,16 @@ void          khadiActionSubmitSyncMany  (Khadi_Action **action, Size count, Kha
 #endif
 
 #define KHADI__DECLTLV(visible, type, var)                              \
-    global_variable thread_local type KHADI__DECLARED_TLS_Var ## var;   \
+    global_variable thread_local type KHADI__DECLARED_TLS_Var_ ## var;  \
     visible                                                             \
     type khadi__GetDeclaredTLS_ ## var (void) {                         \
-        type val = KHADI__DECLARED_TLS_Var ## var;                      \
+        type val = KHADI__DECLARED_TLS_Var_ ## var;                     \
         __asm__ volatile("");                                           \
         return val;                                                     \
     }                                                                   \
     visible                                                             \
     void khadi__SetDeclaredTLS_ ## var (type val) {                     \
-        KHADI__DECLARED_TLS_Var ## var = val;                           \
+        KHADI__DECLARED_TLS_Var_ ## var = val;                          \
         __asm__ volatile("");                                           \
         return;                                                         \
     }                                                                   \
