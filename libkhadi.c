@@ -4,6 +4,7 @@
  */
 
 #include "libkhadi.h"
+#include "nlib.h"
 
 #define KHADI__DECL_TLS(type, var) KHADI__DECLTLV(KHADI_INTERNAL, type, var)
 
@@ -170,7 +171,7 @@ void khadiConfigAddFibers (Khadi_Config *k, Size stack_size, Size count)
 }
 
 KHADI_EXPORTED
-B32 khadiConfigConstruct (Khadi_Config *khadi)
+Bool khadiConfigConstruct (Khadi_Config *khadi)
 {
     { // Create Fibers
         KG__fibers_ring = ringLockedCreate(cothread_t, khadi->fiber_count);
@@ -369,7 +370,7 @@ KHADI_EXPORTED
 U64 khadiCounterIsEqualTo (Khadi_Counter *counter, U64 value)
 {
     U64 v2 = value;
-    B32 equal = atomic_compare_exchange_strong(counter, &v2, value);
+    Bool equal = atomic_compare_exchange_strong(counter, &v2, value);
     return equal;
 }
 

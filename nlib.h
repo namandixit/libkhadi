@@ -2,7 +2,7 @@
  * Creator: Naman Dixit
  * Notice: © Copyright 2018 Naman Dixit
  * SPDX-License-Identifier: 0BSD
- * Version: 71
+ * Version: 73
  */
 
 #if !defined(NLIB_H_INCLUDE_GUARD)
@@ -156,6 +156,7 @@
 # endif
 
 # include <stdint.h>
+# include <stdbool.h>
 # include <inttypes.h>
 # include <limits.h>
 # include <stdarg.h>
@@ -251,14 +252,13 @@ typedef ptrdiff_t            Dptr;
 typedef float                F32;
 typedef double               F64;
 
+typedef bool                 Bool;
+
 typedef U8                   B8;
 typedef U16                  B16;
 typedef U32                  B32;
 typedef U64                  B64;
-# if defined(LANG_C)
-#  define true                1U
-#  define false               0U
-# endif
+
 typedef unsigned char        Byte;
 typedef char                 Char;
 
@@ -492,7 +492,7 @@ header_function Size printDebugOutput (Char const *format, ...);
 #  if defined(BUILD_DEBUG)
 #   define claim(cond) claim_(cond, #cond, __FILE__, __LINE__)
 header_function
-void claim_ (B32 cond,
+void claim_ (Bool cond,
              Char const *cond_str,
              Char const *filename, U32 line_num)
 {
@@ -669,7 +669,7 @@ U64 stbfp_powten[20] = {
         ol = ((ahi * bhi - oh) + ahi * blo + alo * bhi) + alo * blo;    \
     } while (0)
 
-#   define stbfp_ddtoS64(ob, xh, xl) do {          \
+#   define stbfp_ddtoS64(ob, xh, xl) do {       \
         F64 ahi = 0, alo, vh, t;                \
         ob = (S64)xh;                           \
         vh = (F64)ob;                           \
@@ -679,7 +679,7 @@ U64 stbfp_powten[20] = {
         ob += (S64)(ahi + alo + xl);            \
     } while (0)
 
-#   define stbfp_ddrenorm(oh, ol) do {             \
+#   define stbfp_ddrenorm(oh, ol) do {          \
         F64 s;                                  \
         s = oh + ol;                            \
         ol = ol - (s - oh);                     \
@@ -786,7 +786,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
     Char const *fmt = format;
     Char *buf = buffer;
     Size needed_size = 0;
-    B32 resume_output = true;
+    Bool resume_output = true;
 
 #  define IS_OUTPUT_RESUMABLE(arg__space)       \
     do {                                        \
@@ -957,7 +957,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                 } break;
 
                 case 'b': case 'B': { // binary
-                    B32 upper = (fmt[0] == 'B') ? true : false;
+                    Bool upper = (fmt[0] == 'B') ? true : false;
 
                     U64 num = 0;
                     if (flags & Print_Flags_INT64) {
@@ -1006,7 +1006,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                 } break;
 
                 case 'o': case 'O': { // octal
-                    B32 upper = (fmt[0] == 'O') ? true : false;
+                    Bool upper = (fmt[0] == 'O') ? true : false;
 
                     U64 num = 0;
                     if (flags & Print_Flags_INT64) {
@@ -1069,7 +1069,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
 
                 case 'X':
                 case 'x': { // hex
-                    B32 upper = (fmt[0] == 'X') ? true : false;
+                    Bool upper = (fmt[0] == 'X') ? true : false;
 
                     U64 num = 0;
                     if (flags & Print_Flags_INT64) {
@@ -1267,7 +1267,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                         case 'a': case 'A': { flags |= Print_Flags_FLOAT_HEX;     } break;
                     }
 
-                    B32 capital = false;
+                    Bool capital = false;
                     switch (fmt[0]) {
                         case 'F': case 'E': case 'A': { capital = true;  } break;
                     }
@@ -1290,7 +1290,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
 #  define            F64_BIAS 1023
 
                     // Is the top bit set?
-                    B32 negative  = ((bits >> (F64_MANTISSA_BITS + F64_EXPONENT_BITS)) & 1) != 0;
+                    Bool negative  = ((bits >> (F64_MANTISSA_BITS + F64_EXPONENT_BITS)) & 1) != 0;
                     // Remove all mantissa bits ------------------ and then reset the sign bit
                     U32 exponent_biased = (((U32)(bits >> F64_MANTISSA_BITS)) &
                                            ((1U << F64_EXPONENT_BITS) - 1U));
@@ -1368,7 +1368,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
 
                     if ((str == NLIB_COMPAT_NULL) && (flags & Print_Flags_FLOAT_HEX)) {
                         S32 ex = exponent;
-                        B32 denormal = false;
+                        Bool denormal = false;
 
                         if ((exponent_biased == 0) && (mantissa != 0)) { // Denormals
                             denormal = true;
@@ -1760,7 +1760,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                         }
 
                         if (flags & Print_Flags_FLOAT_FIXED) {
-                            B32 has_seen_non_zero_digit = false;
+                            Bool has_seen_non_zero_digit = false;
 
                             if (e2 >= -52) {
                                 U32 index = e2 < 0 ? 0 : ryu_indexForExponent((U32)e2);
@@ -1852,7 +1852,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                                         } else {
                                             // Is m * 10^(additionalDigits + 1) / 2^(-e2) integer?
                                             S32 required_twos = -e2 - (S32) precision - 1;
-                                            B32 any_trailing_zeros = (required_twos <= 0)
+                                            Bool any_trailing_zeros = (required_twos <= 0)
                                                 || (required_twos < 60 &&
                                                     ryu_multipleOfPowerOf2(m2,
                                                                            (U32)required_twos));
@@ -1908,7 +1908,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                                 }
                             }
                         } else if (flags & Print_Flags_FLOAT_EXP) {
-                            B32 print_decimal_point = precision > 0;
+                            Bool print_decimal_point = precision > 0;
                             ++precision;
 
                             U32 digits = 0;
@@ -2016,7 +2016,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                                 // precision was already increased by 1, so we don't need to write + 1 here.
                                 S32 rexp = (S32) precision - exp;
                                 S32 requiredTwos = -e2 - rexp;
-                                B32 any_trailing_zeros = requiredTwos <= 0
+                                Bool any_trailing_zeros = requiredTwos <= 0
                                     || (requiredTwos < 60 && ryu_multipleOfPowerOf2(m2, (U32) requiredTwos));
                                 if (rexp < 0) {
                                     S32 requiredFives = -rexp;
@@ -2095,10 +2095,10 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                         }
 #  elif defined(NLIB_PRINT_BAD_FLOAT)
                         F64 value = (f64 < 0) ? -f64 : f64;
-                        B32 power_of_e_nonsense = false;
+                        Bool power_of_e_nonsense = false;
                         Sint print_exponent = 0;
 
-                        B32 fmt_exponential = (fmt[0] == 'E') || (fmt[0] == 'e');
+                        Bool fmt_exponential = (fmt[0] == 'E') || (fmt[0] == 'e');
 
                         { // Limit the "range" of float
                             // log10(2^64) = 19 = max integral F64 storable in U64 without
@@ -2305,7 +2305,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                                         Size index = 0;
 
                                         if ((temp[index] - '0') > 5) {
-                                            B32 carry = false;
+                                            Bool carry = false;
                                             do {
                                                 if ((temp[index-1] - '0') == 9) {
                                                     temp[index-1] = '0';
@@ -2662,7 +2662,7 @@ Size errv (Char const *format, va_list ap)
 #  define utTest(cond) ut_Test(cond, #cond, __FILE__, __LINE__)
 
 header_function
-void ut_Test (B32 cond,
+void ut_Test (Bool cond,
               Char *cond_str,
               Char *filename, U32 line_num) {
     if (!(cond)) {
@@ -2867,8 +2867,8 @@ header_function U64 mLog2U64 (U64 x) { U64 y = x ? bitFindMSBU64(x) : 0; return 
         )(x)
 #  endif
 
-header_function B32 mIsPowerOf2U32 (U32 x) { B32 b = (x & (x - 1)) == 0; return b; }
-header_function B64 mIsPowerOf2U64 (U64 x) { B64 b = (x & (x - 1)) == 0; return b; }
+header_function Bool mIsPowerOf2U32 (U32 x) { B32 b = (x & (x - 1)) == 0; return b; }
+header_function Bool mIsPowerOf2U64 (U64 x) { B64 b = (x & (x - 1)) == 0; return b; }
 
 #  if defined(LANG_C) && LANG_C >= 2011
 #   define mNextPowerOf2(x) mGeneric((x),                       \
@@ -3172,16 +3172,16 @@ Size strlen (const Char *s)
 #  endif
 
 header_function
-B32 streq (const Char *str1, const Char *str2)
+Bool streq (const Char *str1, const Char *str2)
 {
-    B32 result = (strcmp(str1, str2) == 0);
+    Bool result = (strcmp(str1, str2) == 0);
     return result;
 }
 
 header_function
-B32 strneq (const Char *str1, const Char *str2, Size count)
+Bool strneq (const Char *str1, const Char *str2, Size count)
 {
-    B32 result = (strncmp(str1, str2, count) == 0);
+    Bool result = (strncmp(str1, str2, count) == 0);
     return result;
 }
 
@@ -3344,7 +3344,7 @@ typedef struct Sbuf_Header {
 //# define sbufPrintSized(sb, s, ...) ((sb) = sbuf_PrintSized((sb), s, __VA_ARGS__))
 
 # define sbufUnsortedRemove(sb, i) (((sb)[(i)] = (sb)[sbuf_Len(sb) - 1]), \
-                                   ((sbuf_GetHeader(sb)->len)--))
+                                    ((sbuf_GetHeader(sb)->len)--))
 
 #  if defined(COMPILER_CLANG)
 #   pragma clang diagnostic push
@@ -3382,7 +3382,7 @@ void* sbuf_Grow (void *buf, Size elem_size)
         } else {
             new_header = (Sbuf_Header *)NLIB_SBUF_MALLOC(new_size);
             *new_header = (Sbuf_Header){.len = 0,
-                                        .userdata = NULL};
+                .userdata = NULL};
         }
 
         new_header->cap = new_cap;
@@ -3407,8 +3407,8 @@ void* sbuf_Resize (void *buf, Size elem_count, Size elem_size)
     } else {
         new_header = (Sbuf_Header *)NLIB_SBUF_MALLOC(new_size);
         *new_header = (Sbuf_Header){.cap = 0,
-                                    .len = 0,
-                                    .userdata = NULL};
+            .len = 0,
+            .userdata = NULL};
     }
 
     new_header->cap = new_cap;
@@ -3557,8 +3557,8 @@ void listReplace(List_Node *old, List_Node *new)
 header_function
 void listReplaceAndInit(List_Node *old, List_Node *new)
 {
-        listReplace(old, new);
-        listNodeInit(old);
+    listReplace(old, new);
+    listNodeInit(old);
 }
 
 header_function
@@ -3582,14 +3582,14 @@ void listMoveAfter (List_Node *list, List_Node *after_this)
 header_function
 void listMoveBefore (List_Node *list, List_Node *before_this)
 {
-        list__RemoveNodeBetween(list->prev, list->next);
-        listAddBefore(list, before_this);
+    list__RemoveNodeBetween(list->prev, list->next);
+    listAddBefore(list, before_this);
 }
 
 header_function
-B32 listIsEmpty (List_Node *node)
+Bool listIsEmpty (List_Node *node)
 {
-    B32 result = (node->next == node);
+    Bool result = (node->next == node);
     return result;
 }
 
@@ -3636,7 +3636,7 @@ void listSpliceInit (List_Node *list, List_Node *node)
  */
 
 # if defined(LANG_C) && !defined(NLIB_EXCLUDE_INTERN)
-#  define INTERN_EQUALITY(func_name) B32 func_name (void *a, void *b, Size b_index)
+#  define INTERN_EQUALITY(func_name) Bool func_name (void *a, void *b, Size b_index)
 typedef INTERN_EQUALITY(Intern_Equality_Function);
 
 typedef struct Intern {
@@ -3647,9 +3647,9 @@ typedef struct Intern {
 } Intern;
 
 header_function
-B32 internCheck (Intern *it, U8 hash1, U8 hash2,
-                 void *datum, void *data, Intern_Equality_Function *eqf,
-                 Size *result)
+Bool internCheck (Intern *it, U8 hash1, U8 hash2,
+                  void *datum, void *data, Intern_Equality_Function *eqf,
+                  Size *result)
 {
     if (it->lists[hash1].secondary_hashes != NULL) {
         // Our data has probably been inserted already.
@@ -3682,7 +3682,7 @@ void internData (Intern *it, U8 hash1, U8 hash2, Size index)
 }
 
 header_function
-U8 internStringPearsonHash (void *buffer, Size len, B32 which)
+U8 internStringPearsonHash (void *buffer, Size len, Bool which)
 {
     // NOTE(naman): Pearson's hash for 8-bit hashing
     // https://en.wikipedia.org/wiki/Pearson_hashing
@@ -3751,7 +3751,7 @@ INTERN_EQUALITY(internStringEquality) {
     Char *sa = a;
     Char **ss = b;
     Char *sb = ss[b_index];
-    B32 result = streq(sa, sb);
+    Bool result = streq(sa, sb);
     return result;
 }
 
@@ -3823,13 +3823,13 @@ INTERN_EQUALITY(internIntegerEquality) {
     U64 ia = ((U64*)a)[0];
     U64 ib = ((U64*)b)[b_index];
 
-    B32 result = (ia == ib);
+    Bool result = (ia == ib);
     return result;
 }
 
 // SEE(naman): https://stackoverflow.com/a/8546542
 header_function
-U8 internIntegerHash8Bit (U64 key, B32 which)
+U8 internIntegerHash8Bit (U64 key, Bool which)
 {
     U8 result = 0;
     U64 q = 0;
@@ -4004,10 +4004,10 @@ void htDelete (Hash_Table ht)
 }
 
 header_function
-B32 ht_LinearProbeSearch (Hash_Table *ht, U64 key, U64 hash, Size *value)
+Bool ht_LinearProbeSearch (Hash_Table *ht, U64 key, U64 hash, Size *value)
 {
     Size index = 0;
-    B32 found = false;
+    Bool found = false;
 
     for (Size i = 0; !found && (i < ht->slot_count); ++i) {
         index = (hash + i) % (ht->slot_count);
@@ -4145,7 +4145,7 @@ U64 htRemove (Hash_Table *ht, U64 key)
 /* API ----------------------------------------
  * void  mapInsert     (T *ptr, U64 key, T value)
  * void  mapRemove     (T *ptr, U64 key)
- * B32   mapExists     (T *ptr, U64 key)
+ * Bool   mapExists     (T *ptr, U64 key)
  * T     mapLookup     (T *ptr, U64 key)
  * T*    mapGetRef     (T *ptr, U64 key)
  * void  mapDelete     (T *ptr)
@@ -4209,7 +4209,7 @@ typedef struct Map_Userdata {
     } while (0)
 
 header_function
-B32 mapExists (void *map, U64 key) {
+Bool mapExists (void *map, U64 key) {
     if (map != NULL) {
         Sbuf_Header *shdr = sbuf_GetHeader(map);
         Size index = htLookup(&((Map_Userdata*)shdr->userdata)->table, key);
@@ -4221,7 +4221,7 @@ B32 mapExists (void *map, U64 key) {
 }
 
 #  define mapLookup(_map, _key) ((_map)[(htLookup(&((Map_Userdata*)(sbuf_GetHeader(_map))->userdata)->table, \
-                                                (_key)))])
+                                                  (_key)))])
 #  define mapGetRef(_map, _key) (&mapLookup((_map), (_key)))
 
 #  define mapRemove(_map, _key) do {                                    \
@@ -4305,7 +4305,7 @@ void* ringLocked__Create (Size elemsize, Size buffersize)
 
 #   define ringLocked__GetHead(r) containerof(r, Ring_Locked__Head, buffer)
 
-#   define ringLockedPush(ring, elem) do {                         \
+#   define ringLockedPush(ring, elem) do {                      \
         Ring_Locked__Head *head = ringLocked__GetHead(ring);    \
                                                                 \
         sem_wait(&head->empty_count);                           \
@@ -4319,7 +4319,7 @@ void* ringLocked__Create (Size elemsize, Size buffersize)
         sem_post(&head->fill_count);                            \
     } while (0)
 
-#   define ringLockedPull(ring, dest) do {                                 \
+#   define ringLockedPull(ring, dest) do {                              \
         Ring_Locked__Head *head = ringLocked__GetHead(ring);            \
                                                                         \
         sem_wait(&head->fill_count);                                    \
@@ -4409,7 +4409,7 @@ void queueLocked__CondWaitCleaner (void *arg)
     pthread_mutex_unlock(arg);
 }
 
-#   define queueLockedEnqueue(queue, qiptr) do {                   \
+#   define queueLockedEnqueue(queue, qiptr) do {                \
         Queue_Locked__Head *head = queueLocked__GetHead(queue); \
                                                                 \
         pthread_mutex_lock(&head->list_lock);                   \
@@ -4420,13 +4420,13 @@ void queueLocked__CondWaitCleaner (void *arg)
         pthread_mutex_unlock(&head->list_lock);                 \
     } while (0)
 
-#   define queueLockedDequeue(queue, qiptr) do {                   \
+#   define queueLockedDequeue(queue, qiptr) do {                \
         Queue_Locked__Head *head = queueLocked__GetHead(queue); \
                                                                 \
         pthread_mutex_lock(&head->list_lock);                   \
                                                                 \
         while (listIsEmpty(&head->list)) {                      \
-            pthread_cleanup_push(&queueLocked__CondWaitCleaner,  \
+            pthread_cleanup_push(&queueLocked__CondWaitCleaner, \
                                  &head->list_lock);             \
             pthread_cond_wait(&head->list_filled_signal,        \
                               &head->list_lock);                \
