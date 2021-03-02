@@ -2,7 +2,7 @@
  * Creator: Naman Dixit
  * Notice: © Copyright 2018 Naman Dixit
  * SPDX-License-Identifier: 0BSD
- * Version: 73
+ * Version: 142
  */
 
 #if !defined(NLIB_H_INCLUDE_GUARD)
@@ -216,6 +216,9 @@
 #  include <unistd.h>
 #  include <pthread.h>
 #  include <semaphore.h>
+#  include <sys/ioctl.h>
+#  include <linux/perf_event.h>
+#  include <asm/unistd.h>
 # endif
 
 /* Compiler Extensions --------------------------------------------------------- */
@@ -294,8 +297,10 @@ typedef char                 Char;
 
 # if defined(LANG_C)
 #  define NLIB_COMPAT_NULL NULL
+#  define NLIB_COMPAT_INITIALIZER {0}
 # else
 #  define NLIB_COMPAT_NULL nullptr
+#  define NLIB_COMPAT_INITIALIZER {}
 # endif
 
 
@@ -435,18 +440,18 @@ void unicodeWin32UTF16Dealloc (LPWSTR utf16)
 #    define report(...)              printDebugOutput(__VA_ARGS__)
 #    define reportv(format, va_list) printDebugOutputV(format, va_list)
 #   else // = if !defined(BUILD_DEBUG)
-#    define report(...)              err(stderr, __VA_ARGS__)
-#    define reportv(format, va_list) errv(stderr, format, va_list)
+#    define report(...)
+#    define reportv(format, va_list)
 #   endif // defined(BUILD_DEBUG)
 #  elif defined(OS_LINUX)
 #   if defined(BUILD_DEBUG)
 #    define report(...)              err(__VA_ARGS__)
 #    define reportv(format, va_list) errv(format, va_list)
 #   else // = if !defined(BUILD_DEBUG)
-#    define report(...)              err(__VA_ARGS__)
-#    define reportv(format, va_list) errv(format, va_list)
+#    define report(...)
+#    define reportv(format, va_list)
 #   endif // defined(BUILD_DEBUG)
-#  endif // defined(OS_WINDOWS)
+#  endif // defined(OS_WINDOWS) || defined(OS_LINUX)
 header_function Size err (Char const *format, ...);
 header_function Size errv (Char const *format, va_list ap);
 header_function Size printDebugOutputV (Char const *format, va_list ap);
@@ -504,7 +509,7 @@ void claim_ (Bool cond,
     }
 }
 #  else
-#   define claim(cond) do { cond; } while (0)
+#   define claim(cond) ((void)(cond))
 #  endif
 
 # endif // NLIB_EXCLUDE_CLAIM
@@ -896,6 +901,7 @@ Size printStringVarArg (Char *buffer, Size buffer_size, Char const *format, va_l
                 case 'l': { // are we 64-bit
                     flags |= Print_Flags_INT64;
                     fmt++;
+                    if (fmt[0] == 'l') fmt++;
                 } break;
                 case 'z': { // are we 64-bit on size_t?
                     flags |= (sizeof(Size) == 8) ? Print_Flags_INT64 : 0;
@@ -2613,6 +2619,13 @@ Size printString (Char *buffer, Size buffer_size, Char const *format, ...)
     return result;
 }
 
+#  if defined(COMPILER_CLANG)
+#   pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wformat-nonliteral"
+#  endif
+#  if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+__attribute__((format(__printf__, 1, 2)))
+#  endif
 header_function
 Size say (Char const *format, ...)
 {
@@ -2632,6 +2645,13 @@ Size sayv (Char const *format, va_list ap)
     return result;
 }
 
+#  if defined(COMPILER_CLANG)
+#   pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wformat-nonliteral"
+#  endif
+#  if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+__attribute__((format(__printf__, 1, 2)))
+#  endif
 header_function
 Size err (Char const *format, ...)
 {
@@ -2672,6 +2692,264 @@ void ut_Test (Bool cond,
 }
 
 # endif // NLIB_EXCLUDE_UNIT_TEST
+
+/* ===================
+ * @Profiling
+ */
+
+# if !defined(NLIB_EXCLUDE_PROFILING)
+
+typedef struct {
+    U64 flags;
+
+#  if defined(OS_LINUX)
+    int group_leader_fd;
+
+    int cycles_fd;
+    int instructions_fd;
+    int task_clock_fd;
+
+    U64 group_leader_id;
+
+    U64 cycles_id;
+    U64 instructions_id;
+    U64 task_clock_id;
+
+    Bool grouped_reads;
+
+    Byte _pad[7];
+#  endif
+} Profiler;
+
+#  define Profiler_CYCLES       (1ULL << 0)
+#  define Profiler_INSTRUCTIONS (1ULL << 2)
+#  define Profiler_TIME         (1ULL << 3)
+#  define Profiler_TOTAL        (3U)
+
+#  define Profiler_ALL          (~0ULL)
+
+typedef struct {
+    U64 flags;
+
+    U64 cycles;
+    U64 instructions;
+    U64 time; // In nanoseconds
+} Profiler_Result;
+
+header_function
+Bool profilerHasFlag (Profiler *profiler, U64 flag)
+{
+    return ((profiler->flags & flag) == flag);
+}
+
+header_function
+Bool profilerResultHasFlag (Profiler_Result *result, U64 flag)
+{
+    return ((result->flags & flag) == flag);
+}
+
+header_function
+U64 profilerResultRead (Profiler_Result *result, U64 flag)
+{
+    switch (flag) {
+        case Profiler_CYCLES: {
+            return result->cycles;
+        } break;
+        case Profiler_INSTRUCTIONS: {
+            return result->instructions;
+        } break;
+        case Profiler_TIME: {
+            return result->time;
+        }
+    }
+
+    return 0;
+}
+
+#  if defined(OS_LINUX)
+
+typedef struct {
+    U64 value;
+    U64 time_enabled;
+    U64 time_running;
+    U64 id;
+} Profiler__Linux_Output;
+
+#   if defined(LANG_CPP)
+#    define FLEXIBLE_ARRAY_MEMBER_SYNTAX 0
+#   elif defined(LANG_C)
+#    define FLEXIBLE_ARRAY_MEMBER_SYNTAX
+#   endif
+typedef struct {
+    U64 count;
+    U64 time_enabled;
+    U64 time_running;
+    struct {
+        U64 value;
+        U64 id;
+    } values[FLEXIBLE_ARRAY_MEMBER_SYNTAX];
+} Profiler__Linux_Group_Output;
+#   undef FLEXIBLE_ARRAY_MEMBER_SYNTAX
+
+header_function
+int Profiler__LinuxPerfEventOpen (struct perf_event_attr *hw_event, pid_t pid,
+                                   int cpu, int group_fd, unsigned long flags)
+{
+    int ret = (int)syscall(__NR_perf_event_open, hw_event, pid, cpu, group_fd, flags);
+    return ret;
+}
+
+header_function
+Profiler profilerCreate (U64 flags)
+{
+    Profiler profiler = NLIB_COMPAT_INITIALIZER;
+
+    if (flags != 0) {
+        struct perf_event_attr group_leader = {
+            .type = PERF_TYPE_SOFTWARE,
+            .size = sizeof(struct perf_event_attr),
+            .config = PERF_COUNT_SW_DUMMY,
+            .read_format = (PERF_FORMAT_TOTAL_TIME_ENABLED | // Last end time - first start time
+                            PERF_FORMAT_TOTAL_TIME_RUNNING | // sum_of(ith last time - ith first time)
+                            PERF_FORMAT_GROUP |              // get entire group's values with one read
+                            PERF_FORMAT_ID),                 // unique id
+            .disabled = 1,
+            .exclude_kernel = 1,
+            .exclude_hv = 1,
+        };
+
+        profiler.grouped_reads = (group_leader.read_format & PERF_FORMAT_GROUP) != 0;
+
+        profiler.group_leader_fd = Profiler__LinuxPerfEventOpen(&group_leader, 0, -1, -1, 0);
+        if (profiler.group_leader_fd == -1) {
+            report("Error opening leader %llx\n", group_leader.config);
+            return profiler;
+        }
+
+        ioctl(profiler.group_leader_fd, PERF_EVENT_IOC_ID, &profiler.group_leader_id);
+    }
+
+    if ((flags & Profiler_CYCLES) == Profiler_CYCLES) {
+        struct perf_event_attr cycles = {
+            .type = PERF_TYPE_HARDWARE,
+            .size = sizeof(struct perf_event_attr),
+            .config = PERF_COUNT_HW_REF_CPU_CYCLES,
+        };
+
+        profiler.cycles_fd = Profiler__LinuxPerfEventOpen(&cycles, 0, -1, profiler.group_leader_fd, 0);
+
+        if (profiler.cycles_fd == -1) {
+            report("Error opening leader %llx\n", cycles.config);
+        } else {
+            profiler.flags |= Profiler_CYCLES;
+            ioctl(profiler.cycles_fd, PERF_EVENT_IOC_ID, &profiler.cycles_id);
+        }
+    }
+
+    if ((flags & Profiler_INSTRUCTIONS) == Profiler_INSTRUCTIONS) {
+        struct perf_event_attr instructions = {
+            .type = PERF_TYPE_HARDWARE,
+            .size = sizeof(struct perf_event_attr),
+            .config = PERF_COUNT_HW_INSTRUCTIONS,
+        };
+
+        profiler.instructions_fd = Profiler__LinuxPerfEventOpen(&instructions, 0, -1, profiler.group_leader_fd, 0);
+
+        if (profiler.instructions_fd == -1) {
+            report("Error opening leader %llx\n", instructions.config);
+        } else {
+            profiler.flags |= Profiler_INSTRUCTIONS;
+            ioctl(profiler.instructions_fd, PERF_EVENT_IOC_ID, &profiler.instructions_id);
+        }
+    }
+
+    if ((flags & Profiler_TIME) == Profiler_TIME) {
+        struct perf_event_attr task_clock = {
+            .type = PERF_TYPE_SOFTWARE,
+            .size = sizeof(struct perf_event_attr),
+            .config = PERF_COUNT_SW_TASK_CLOCK ,
+        };
+
+        profiler.task_clock_fd = Profiler__LinuxPerfEventOpen(&task_clock, 0, -1, profiler.group_leader_fd, 0);
+
+        if (profiler.task_clock_fd == -1) {
+            report("Error opening leader %llx\n", task_clock.config);
+        } else {
+            profiler.flags |= Profiler_TIME;
+            ioctl(profiler.task_clock_fd, PERF_EVENT_IOC_ID, &profiler.task_clock_id);
+        }
+    }
+
+    ioctl(profiler.group_leader_fd, PERF_EVENT_IOC_RESET, PERF_IOC_FLAG_GROUP);
+
+    return profiler;
+}
+
+header_function
+void profilerStartProfile (Profiler *profiler)
+{
+    if (profiler->flags != 0) {
+        ioctl(profiler->group_leader_fd, PERF_EVENT_IOC_ENABLE, PERF_IOC_FLAG_GROUP);
+    }
+}
+
+header_function
+Profiler_Result profilerEndProfile (Profiler *profiler)
+{
+    Profiler_Result result = {.flags = profiler->flags};
+
+    if (profiler->flags != 0) {
+        ioctl(profiler->group_leader_fd, PERF_EVENT_IOC_DISABLE, PERF_IOC_FLAG_GROUP);
+
+        if (profiler->grouped_reads) {
+            Char buffer[4096]; // NOTE(naman): Make sure this isn't changed to be too big for stack
+            static_assert(sizeof(buffer) >= (sizeof(Profiler__Linux_Group_Output) +
+                                             Profiler_TOTAL * 2 * sizeof(U64)),
+                          "Profiler (Linux): Buffer is not large enough to hold all data of all events");
+            read(profiler->group_leader_fd, buffer, sizeof(buffer));
+
+            Profiler__Linux_Group_Output* output = (Profiler__Linux_Group_Output*)buffer;
+
+#   define EVENT_IS(s, C) ((output->values[i].id == profiler->s##_id) && profilerHasFlag(profiler, Profiler_##C))
+            for (U64 i = 0; i < output->count; i++) {
+                if (EVENT_IS(cycles, CYCLES)) {
+                    result.cycles = output->values[i].value;
+                } else if (EVENT_IS(instructions, INSTRUCTIONS)) {
+                    result.instructions = output->values[i].value;
+                } else if (EVENT_IS(task_clock, TIME)) {
+                    result.time = output->values[i].value;
+                }
+            }
+#   undef EVENT_IS
+        } else {
+            Profiler__Linux_Output cycles, instructions, time;
+            read(profiler->cycles_fd, &cycles, sizeof(cycles));
+            read(profiler->instructions_fd, &instructions, sizeof(instructions));
+            read(profiler->task_clock_fd, &time, sizeof(time));
+
+            result.cycles = cycles.value;
+            result.instructions = instructions.value;
+            result.time = time.value;
+        }
+    }
+
+    ioctl(profiler->group_leader_fd, PERF_EVENT_IOC_RESET, PERF_IOC_FLAG_GROUP);
+
+    return result;
+}
+
+header_function
+void profilerDestroy (Profiler *profiler)
+{
+    close(profiler->cycles_fd);
+    close(profiler->instructions_fd);
+    close(profiler->task_clock_fd);
+    close(profiler->group_leader_fd);
+}
+
+#  endif // define(OS_LINUX)
+
+# endif // NLIB_EXCLUDE_PROFILING
 
 
 /* ==================
