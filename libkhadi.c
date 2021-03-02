@@ -77,6 +77,8 @@ struct Khadi_Task {
     Queue_Locked_Entry queue_entry;
     Khadi_Counter *parent_counter; // Counter which this task will decrement upon completion
     Khadi_Counter *child_counter; // Counter which this task's children will decrement upon completion
+
+    Khadi_Profile profile;
 };
 
 struct Khadi_Action {
@@ -447,6 +449,13 @@ void khadiTaskSubmitSyncMany (Khadi_Task **tasks, Size count, Khadi_Counter *cou
 }
 
 KHADI_EXPORTED
+Khadi_Profile khadiTaskGetProfile (Khadi_Task *task)
+{
+    Khadi_Profile result = task->profile;
+    return result;
+}
+
+KHADI_EXPORTED
 void khadiTaskLaunch (Khadi_Launcher_Function *initializer,
                       Khadi_Launcher_Function *finalizer,
                       Khadi_Task_Function *func, void *arg)
@@ -535,6 +544,8 @@ void* khadiThreadTaskFunction (void *arg) {
         printf("Task CPU: %zu\n", khadiEnvCurrentCPU());
     }
 
+    Profiler profiler = profilerCreate(Profiler_ALL);
+
     while (true) {
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         Khadi_Task *task = khadiTaskAccept();
@@ -551,7 +562,15 @@ void* khadiThreadTaskFunction (void *arg) {
             khadiTaskAssignFiber(task, fiber);
         }
 
+        profilerStartProfile(&profiler);
         khadiTaskExecute(task);
+        Profiler_Result result = profilerEndProfile(&profiler);
+
+#define UPDATE_PROFILE(C, s) do { if (profilerResultHasFlag(&result, Profiler_##C)) task->profile. s += result. s; } while(0)
+        UPDATE_PROFILE(CYCLES, cycles);
+        UPDATE_PROFILE(INSTRUCTIONS, instructions);
+        UPDATE_PROFILE(TIME, time);
+#undef UPDATE_PROFILE
 
         if (khadiFiberIsTaskFinished(fiber)) {
             khadiTaskMarkDone(task);
@@ -565,6 +584,9 @@ void* khadiThreadTaskFunction (void *arg) {
             queueLockedEnqueue(KG__task_queue, &(task)->queue_entry);
         }
     }
+
+    // NOTE(naman): Above loop is infinite, so this code will never be executed.
+    // profilerDestroy(&profiler);
 
     return NULL;
 }

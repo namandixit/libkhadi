@@ -23,6 +23,12 @@ typedef struct Khadi_Config Khadi_Config;
 
 typedef _Atomic(uint64_t) Khadi_Counter;
 
+typedef struct {
+    uint64_t cycles;
+    uint64_t instructions;
+    uint64_t time; // In nanoseconds
+} Khadi_Profile;
+
 #define KHADI_TASK_FUNCTION(func_name) void func_name (void * arg)
 typedef KHADI_TASK_FUNCTION(Khadi_Task_Function);
 typedef struct Khadi_Task Khadi_Task;
@@ -50,17 +56,18 @@ Khadi_Counter* khadiCounterCreate    (void);
 void           khadiCounterDestroy   (Khadi_Counter *counter);
 uint64_t       khadiCounterIsEqualTo (Khadi_Counter *counter, uint64_t value);
 
-Khadi_Task* khadiTaskCreate          (Khadi_Task_Function *func, void *arg);
-void        khadiTaskDestroy         (Khadi_Task *task);
-void        khadiTaskWaitOnCounter   (Khadi_Counter *counter);
-void        khadiTaskSubmitAsync     (Khadi_Task *task, Khadi_Counter *counter);
-void        khadiTaskSubmitAsyncMany (Khadi_Task **task, size_t count, Khadi_Counter *counter);
-void        khadiTaskSubmitSync      (Khadi_Task *task, Khadi_Counter *counter);
-void        khadiTaskSubmitSyncMany  (Khadi_Task **task, size_t count, Khadi_Counter *counter);
-void        khadiTaskLaunch          (Khadi_Launcher_Function *initializer,
-                                      Khadi_Launcher_Function *finalizer,
-                                      Khadi_Task_Function *func, void *arg);
-void        khadiTaskSuspend         (void);
+Khadi_Task*   khadiTaskCreate           (Khadi_Task_Function *func, void *arg);
+void          khadiTaskDestroy          (Khadi_Task *task);
+void          khadiTaskWaitOnCounter    (Khadi_Counter *counter);
+void          khadiTaskSubmitAsync      (Khadi_Task *task, Khadi_Counter *counter);
+void          khadiTaskSubmitAsyncMany  (Khadi_Task **task, size_t count, Khadi_Counter *counter);
+void          khadiTaskSubmitSync       (Khadi_Task *task, Khadi_Counter *counter);
+void          khadiTaskSubmitSyncMany   (Khadi_Task **task, size_t count, Khadi_Counter *counter);
+void          khadiTaskLaunch           (Khadi_Launcher_Function *initializer,
+                                         Khadi_Launcher_Function *finalizer,
+                                         Khadi_Task_Function *func, void *arg);
+void          khadiTaskSuspend          (void);
+Khadi_Profile khadiTaskGetProfile       (Khadi_Task *task);
 
 Khadi_Action* khadiActionCreate          (void *command);
 void          khadiActionDestroy         (Khadi_Action *action);
