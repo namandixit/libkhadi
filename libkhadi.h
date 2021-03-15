@@ -15,10 +15,10 @@ extern "C"
 # include <stdbool.h>
 
 /* Helper Macros */
-#define KHADI_DEFINE_THREAD_LOCAL_VARIABLE(type, var)  KHADI__DEFTLV(type, var)
-#define KHADI_DECLARE_THREAD_LOCAL_VARIABLE(type, var) KHADI__DECLTLV(KHADI_EXPORTED, type, var)
-#define KHADI_GET_THREAD_LOCAL_VARIABLE(var)           khadi__GetDeclaredTLS_ ## var()
-#define KHADI_SET_THREAD_LOCAL_VARIABLE(var, val)      khadi__SetDeclaredTLS_ ## var(val)
+#define KHADI_THREAD_LOCAL_DEFINE(type, var)  KHADI__DEFTLV(type, var)
+#define KHADI_THREAD_LOCAL_DECLARE(type, var) KHADI__DECLTLV(KHADI_EXPORTED, type, var)
+#define KHADI_THREAD_LOCAL_GET(var)           khadi__GetDeclaredTLS_ ## var()
+#define KHADI_THREAD_LOCAL_SET(var, val)      khadi__SetDeclaredTLS_ ## var(val)
 
 /* Types */
 typedef _Atomic(uint64_t) Khadi_Counter;
@@ -109,7 +109,7 @@ void          khadiActionSubmitSyncMany  (Khadi_Action **action, size_t count, K
 void*         khadiActionGetUserdata     (Khadi_Action *action);
 
 
-/* Internal implementation details, put here due to the following being a macro */
+/* Internal implementation details, put here due to the following being Macros */
 # if defined(__clang__)
 #  define KHADI_INTERNAL internal_function __attribute__ ((optnone))
 #  define KHADI_EXPORTED __attribute__ ((optnone))

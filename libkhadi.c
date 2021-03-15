@@ -186,7 +186,7 @@ Bool khadiFibersCreate (Khadi_Fiber_Configuration *configs, Size config_count)
 KHADI_INTERNAL
 Khadi_Fiber* khadiFiberGetCurrentlyRunning (void)
 {
-    Khadi_Fiber *current_fiber = KHADI_GET_THREAD_LOCAL_VARIABLE(KGTLV__current_fiber);
+    Khadi_Fiber *current_fiber = KHADI_THREAD_LOCAL_GET(KGTLV__current_fiber);
     return current_fiber;
 }
 
@@ -217,13 +217,13 @@ B64 khadiFiberIsTaskFinished (Khadi_Fiber *fiber)
 KHADI_INTERNAL
 void khadiFiberSetThreadCurrent (Khadi_Fiber *fiber)
 {
-    KHADI_SET_THREAD_LOCAL_VARIABLE(KGTLV__current_fiber, fiber);
+    KHADI_THREAD_LOCAL_SET(KGTLV__current_fiber, fiber);
 }
 
 KHADI_INTERNAL
 void khadiFiberSwitchToThreadDefault (void)
 {
-    Khadi_Fiber *default_fiber = KHADI_GET_THREAD_LOCAL_VARIABLE(KGTLV__default_fiber);
+    Khadi_Fiber *default_fiber = KHADI_THREAD_LOCAL_GET(KGTLV__default_fiber);
     khadiFiberSetThreadCurrent(default_fiber);
     co_switch(default_fiber->cothread);
 }
@@ -231,8 +231,8 @@ void khadiFiberSwitchToThreadDefault (void)
 KHADI_INTERNAL
 void khadiFiberResetThreadCurrent (void)
 {
-    KHADI_SET_THREAD_LOCAL_VARIABLE(KGTLV__current_fiber,
-                                    KHADI_GET_THREAD_LOCAL_VARIABLE(KGTLV__default_fiber));
+    KHADI_THREAD_LOCAL_SET(KGTLV__current_fiber,
+                                    KHADI_THREAD_LOCAL_GET(KGTLV__default_fiber));
 }
 
 KHADI_INTERNAL
@@ -429,7 +429,7 @@ KHADI_INTERNAL
 KHADI_THREAD_FUNCTION(khadiTaskThreadFunction) {
     Khadi_Task_Thread_Arguement *data = arg;
 
-    KHADI_SET_THREAD_LOCAL_VARIABLE(KGTLV__default_fiber, co_active());
+    KHADI_THREAD_LOCAL_SET(KGTLV__default_fiber, co_active());
 
     KHADI__CALLBACK(on_task_thread_begin, data);
 
