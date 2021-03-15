@@ -14,20 +14,25 @@ extern "C"
 # include <stddef.h>
 # include <stdbool.h>
 
+/* Helper Macros */
 #define KHADI_DEFINE_THREAD_LOCAL_VARIABLE(type, var)  KHADI__DEFTLV(type, var)
 #define KHADI_DECLARE_THREAD_LOCAL_VARIABLE(type, var) KHADI__DECLTLV(KHADI_EXPORTED, type, var)
 #define KHADI_GET_THREAD_LOCAL_VARIABLE(var)           khadi__GetDeclaredTLS_ ## var()
 #define KHADI_SET_THREAD_LOCAL_VARIABLE(var, val)      khadi__SetDeclaredTLS_ ## var(val)
 
-typedef struct Khadi_Config Khadi_Config;
-
+/* Types */
 typedef _Atomic(uint64_t) Khadi_Counter;
 
-typedef struct {
-    uint64_t cycles;
-    uint64_t instructions;
-    uint64_t time; // In nanoseconds
-} Khadi_Profile;
+typedef struct Khadi_Fiber_Configuration {
+    size_t stack_size;
+    void *stack;
+} Khadi_Fiber_Configuration;
+
+#define KHADI_THREAD_FUNCTION(func_name) void* func_name (void * arg)
+typedef KHADI_THREAD_FUNCTION(Khadi_Thread_Function);
+
+#define KHADI_CALLBACK_FUNCTION(func_name) void func_name (void * arg)
+typedef KHADI_CALLBACK_FUNCTION(Khadi_Callback_Function);
 
 #define KHADI_TASK_FUNCTION(func_name) void func_name (void * arg)
 typedef KHADI_TASK_FUNCTION(Khadi_Task_Function);
@@ -40,17 +45,42 @@ typedef struct Khadi_Action Khadi_Action;
 #define KHADI_LAUNCHER_FUNCTION(func_name) void func_name (void)
 typedef KHADI_LAUNCHER_FUNCTION(Khadi_Launcher_Function);
 
-size_t khadiEnvGetCPUCount (void);
-size_t khadiEnvCurrentCPU  (void);
+typedef struct {
+    void *thread_userdata;
+    void **current_task_userdata;
+} Khadi_Task_Thread_Arguement;
 
-Khadi_Config* khadiConfigCreate       (void);
-void          khadiConfigSetMainCPU   (Khadi_Config *k, unsigned cpu);
-void          khadiConfigAddTaskCPU   (Khadi_Config *k, unsigned cpu);
-void          khadiConfigAddActionCPU (Khadi_Config *k, unsigned cpu, unsigned thread_count,
-                                       Khadi_Action_Function *function);
-void          khadiConfigAddFibers    (Khadi_Config *k, size_t stack_size, size_t count);
-bool          khadiConfigConstruct    (Khadi_Config *khadi);
-void          khadiConfigDestruct     (Khadi_Config *khadi);
+typedef struct {
+    Khadi_Action_Function* action_func;
+    void *thread_userdata;
+    void **current_action_userdata;
+} Khadi_Action_Thread_Arguement;
+
+/* Functions */
+
+void khadiBegin (void);
+void khadiEnd   (void);
+
+bool khadiFibersCreate (Khadi_Fiber_Configuration *configs, size_t config_count);
+
+void khadiCallbackSetTaskThread    (Khadi_Callback_Function *on_task_thread_begin,
+                                    Khadi_Callback_Function *on_task_thread_end);
+void khadiCallbackSetTaskFetch     (Khadi_Callback_Function *before_task_fetch,
+                                    Khadi_Callback_Function *after_task_fetch);
+void khadiCallbackSetTaskExecute   (Khadi_Callback_Function *before_task_execute,
+                                    Khadi_Callback_Function *after_task_execute);
+void khadiCallbackSetActionThread  (Khadi_Callback_Function *on_action_thread_begin,
+                                    Khadi_Callback_Function *on_action_thread_end);
+void khadiCallbackSetActionFetch   (Khadi_Callback_Function *before_action_fetch,
+                                    Khadi_Callback_Function *after_action_fetch);
+void khadiCallbackSetActionExecute (Khadi_Callback_Function *before_action_execute,
+                                    Khadi_Callback_Function *after_action_execute);
+void khadiCallbackSetFiberTask     (Khadi_Callback_Function *on_task_begin_in_fiber,
+                                    Khadi_Callback_Function *on_task_end_in_fiber);
+
+
+Khadi_Thread_Function* khadiTaskGetThreadFunction   (void);
+Khadi_Thread_Function* khadiActionGetThreadFunction (void);
 
 Khadi_Counter* khadiCounterCreate    (void);
 void           khadiCounterDestroy   (Khadi_Counter *counter);
@@ -67,7 +97,7 @@ void          khadiTaskLaunch           (Khadi_Launcher_Function *initializer,
                                          Khadi_Launcher_Function *finalizer,
                                          Khadi_Task_Function *func, void *arg);
 void          khadiTaskSuspend          (void);
-Khadi_Profile khadiTaskGetProfile       (Khadi_Task *task);
+void*         khadiTaskGetUserdata      (Khadi_Task *task);
 
 Khadi_Action* khadiActionCreate          (void *command);
 void          khadiActionDestroy         (Khadi_Action *action);
@@ -76,6 +106,7 @@ void          khadiActionSubmitAsync     (Khadi_Action *action, Khadi_Counter *c
 void          khadiActionSubmitAsyncMany (Khadi_Action **action, size_t count, Khadi_Counter *counter);
 void          khadiActionSubmitSync      (Khadi_Action *action, Khadi_Counter *counter);
 void          khadiActionSubmitSyncMany  (Khadi_Action **action, size_t count, Khadi_Counter *counter);
+void*         khadiActionGetUserdata     (Khadi_Action *action);
 
 
 /* Internal implementation details, put here due to the following being a macro */
