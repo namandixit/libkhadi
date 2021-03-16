@@ -429,7 +429,8 @@ KHADI_INTERNAL
 KHADI_THREAD_FUNCTION(khadiTaskThreadFunction) {
     Khadi_Task_Thread_Arguement *data = arg;
 
-    KHADI_THREAD_LOCAL_SET(KGTLV__default_fiber, co_active());
+    Khadi_Fiber default_fiber = {.cothread = co_active()};
+    KHADI_THREAD_LOCAL_SET(KGTLV__default_fiber, &default_fiber);
 
     KHADI__CALLBACK(on_task_thread_begin, data);
 
