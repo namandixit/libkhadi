@@ -31,36 +31,51 @@ The tasks are stored in a global multi-threaded unbounded queue.
 
 ### Scheduling
 
-![Execute](images/khadi_1_execute.png)
+<p align="center">
+  <small><em>When the serverless function is invoked, Gazelle creates a Task and inserts it in the Task Queue.</em></small>
+  <img src="images/khadi_1_execute.png">
+</p>
 
-Firt, we creates a Task whose function pointer points to the the function we want to execute, while the data
+First, we creates a Task whose function pointer points to the the function we want to execute, while the data
 pointer contains the address of the arguement. This Task is inserted into the global Task Queue,
 from where the scheduler can pick it up and execute it to completion.
 
-
-![Begin](images/khadi_2_begin.png)
-
-![Resume](images/khadi_4_resume.png)
-    \caption{The worker thread dequeues a suspended Task, and uses the already assigned Fiber to run it.}
-    \label{fig:image_resume}
-\end{figure}
+<p align="center">
+  <small><em>The worker thread dequeues a suspended Task, and uses the already assigned Fiber to run it.</em></small>
+  <img src="images/khadi_4_resume.png">
+</p>
 
 Each thread runs a scheduler function which works like this: At the beginning
 of each scheduling cycle, the scheduler dequeues a task and checks whether it has a Fiber attached to it.
 If a Fiber is found, the execution is switched to it through the stack-switching mechanism described
-above; on the other hand, if no Fiber is assigned to the Task, an unused Fiber is fetched from the
+above. 
+
+<p align="center">
+  <small><em>The worker thread dequeues a new Task, assigns a Fiber to the Task and executes it.</em></small>
+  <img src="images/khadi_2_begin.png">
+</p>
+
+On the other hand, if no Fiber is assigned to the Task, an unused Fiber is fetched from the
 global ring and is assigned to this task. This assignment includes storing the Fiber's pointer 
 in the Task's metadata, as well as storing the function and data pointers belonging
 to the Task in the Fiber's private memory. Finally, the Fiber is scheduled on using the stack switching
 mechanism described above.
 
-![Yield](images/khadi_3_yield.png)
-
-![Finish](images/khadi_5_finish.png)
+<p align="center">
+  <small><em>When the Fiber yields, if the Task is not complete, it is inserted back into the Task Queue.</em></small>
+  <img src="images/khadi_3_yield.png">
+</p>
 
 When the Fiber yields, the control is returned back to the scheduler. Here, the scheduler
 first checks if the task has been finished, i.e., if the Task function ran to completion.
-If so, the Fiber is set back to unassigned and the Fiber is put back into the ring. Otherwise, the Task along with the Fiber that is assigned to it is put in the Task Queue.
+If so, the Fiber is set back to unassigned and the Fiber is put back into the ring. 
+
+<p align="center">
+  <small><em>When the Task is completed, the assigned Fiber is put into the ring, and the output is returned to the user.</em></small>
+  <img src="images/khadi_5_finish.png">
+</p>
+
+Otherwise, the Task along with the Fiber that is assigned to it is put in the Task Queue.
 
 ### Synchronization
 
